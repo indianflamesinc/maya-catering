@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     // 3. Load tray items
     const { data: trayItems } = await supabase
       .from('quote_tray_items')
-      .select('*, master_menu(name, category)')
+      .select('*')
       .eq('quote_id', quote_id)
 
     // 4. Load per-person sessions
@@ -71,8 +71,8 @@ export async function POST(req: NextRequest) {
       catering_type: quote.catering_type,
       tray_items: (trayItems ?? []).map(item => ({
         id: item.id,
-        dish_name: item.master_menu?.name || item.dish_name || 'Item',
-        category: item.master_menu?.category || '',
+        dish_name: item.dish_name || 'Item',
+        category: item.cuisine_region || '',
         tray_size: item.tray_size || 'Full',
         tray_quantity: item.tray_quantity || 1,
         pricing_type: item.pricing_type || 'Per Tray',
@@ -302,7 +302,7 @@ async function sendReviewEmail({
     <p style="margin-top:28px;font-size:13px;color:#444">
       Warm regards,<br>
       <strong>Ashokraja & the Maya Team</strong><br>
-      <span style="color:#888">📞 Call/WhatsApp · 📧 indianflamesinc@gmail.com</span>
+      <span style="color:#888">📞 Call/WhatsApp · 📧 catering@mayacater.com</span>
     </p>
   </div>
 
