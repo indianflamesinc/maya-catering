@@ -1,27 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Italiana&family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;500;600&family=Jost:wght@200;300;400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #05091A;
+  --royal: #0A1530;
+  --royal-mid: #0F1E40;
+  --gold: #C9A84C;
+  --gold-hi: #E2C87A;
+  --gold-pale: #F3E4B5;
+  --cream: #F6EDD8;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Jost', sans-serif; background: #05091A; color: #F6EDD8; }
+::selection { background: rgba(201,168,76,0.3); color: #F6EDD8; }
+
+@layer components {
+  .btn-royal {
+    @apply inline-block bg-gold text-ink font-cinzel text-[9px] tracking-[0.32em] uppercase
+           font-semibold px-12 py-4 border border-gold transition-all duration-300;
+    clip-path: polygon(8px 0%, 100% 0, calc(100% - 8px) 100%, 0 100%);
   }
-}
+  .btn-royal:hover { @apply bg-gold-hi; box-shadow: 0 0 36px rgba(201,168,76,0.3); }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  .btn-ghost {
+    @apply inline-block border border-gold/30 text-gold-hi font-cinzel text-[9px]
+           tracking-[0.26em] uppercase px-10 py-4 transition-all duration-300;
+  }
+  .btn-ghost:hover { @apply border-gold bg-gold/10; }
+
+  .section-label {
+    @apply block font-cinzel text-[9.5px] tracking-[0.48em] text-gold uppercase mb-4;
+  }
+  .display-h {
+    @apply font-italiana text-[clamp(40px,6vw,80px)] text-cream leading-[1.08] mb-4;
+  }
+  .input-royal {
+    @apply w-full bg-transparent border-0 border-b border-gold/20 pb-3 text-cream
+           font-jost font-light text-[15px] outline-none transition-colors duration-300
+           placeholder:text-cream/20 focus:border-gold;
+  }
+  .select-royal {
+    @apply w-full bg-royal-mid border border-gold/20 text-cream font-jost font-light
+           text-[14px] outline-none p-3 transition-colors duration-300 focus:border-gold;
+  }
+  .card-royal {
+    @apply border border-gold/20 bg-royal-mid transition-all duration-300
+           hover:border-gold/50 hover:bg-gold/5;
+  }
+  .sec { @apply py-28 px-[7%]; }
+  .sec-in { @apply max-w-[1200px] mx-auto; }
 }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+  .font-jost { font-family: 'Jost', sans-serif; }
+  .font-italiana { font-family: 'Italiana', serif; }
+  .font-cormorant { font-family: 'Cormorant', serif; }
+  .font-cinzel { font-family: 'Cinzel', serif; }
+  .font-cinzel-dec { font-family: 'Cinzel Decorative', serif; }
+  .text-gold { color: #C9A84C; }
+  .text-gold-hi { color: #E2C87A; }
+  .text-gold-pale { color: #F3E4B5; }
+  .text-cream { color: #F6EDD8; }
+  .bg-ink { background-color: #05091A; }
+  .bg-royal { background-color: #0A1530; }
+  .bg-royal-mid { background-color: #0F1E40; }
+  .bg-gold { background-color: #C9A84C; }
+  .bg-gold-hi { background-color: #E2C87A; }
+  .border-gold { border-color: #C9A84C; }
+}
+
+/* Fix date/time pickers visibility */
+input[type="date"],
+input[type="time"] {
+  color-scheme: dark;
+  color: #F6EDD8;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) sepia(1) saturate(2) hue-rotate(10deg);
+  opacity: 0.7;
+  cursor: pointer;
 }
