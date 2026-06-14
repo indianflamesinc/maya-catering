@@ -44,11 +44,33 @@ export async function GET(
     .eq('id', data.enquiry_id)
     .single()
 
+  // Fetch tray items live from DB (bypasses snapshot empty array issue)
+  const { data: trayItems } = await supabase
+    .from('quote_tray_items')
+    .select('*')
+    .eq('quote_id', data.quote_id)
+
+  // Merge live tray items into snapshot
+  const snapshot = {
+    ...data.sent_snapshot,
+    tray_items: (trayItems ?? []).map((item: any) => ({
+      id: item.id,
+      dish_name: item.dish_name || 'Item',
+      category: item.cuisine_region || '',
+      tray_size: item.tray_size || 'Full',
+      tray_quantity: item.tray_quantity || 1,
+      pricing_type: 'Per Tray',
+      unit_price_cents: item.unit_price_cents || 0,
+      total_price_cents: item.total_price_cents || 0,
+      customer_comments: '',
+    })),
+  }
+
   return NextResponse.json({
     token,
     round_number: data.round_number,
     enquiry,
-    snapshot: data.sent_snapshot,
+    snapshot,
     customer_changes: data.customer_changes,
   })
 }
