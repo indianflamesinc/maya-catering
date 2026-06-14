@@ -349,7 +349,7 @@ export default function EnquiryDetailPage() {
                   <div className="mb-4">
                     <span className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase text-gold/50 block mb-2">Cuisines</span>
                     <div className="flex flex-wrap gap-2">
-                      {enquiry.cuisine_preferences.map((c: string) => (
+                      {enquiry.cuisine_preferences?.map((c: string) => (
                         <span key={c} className="font-cinzel text-[7.5px] tracking-[0.15em] uppercase border border-gold/20 text-gold px-2 py-1">{c}</span>
                       ))}
                     </div>
