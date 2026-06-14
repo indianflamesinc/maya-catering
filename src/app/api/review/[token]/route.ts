@@ -1,6 +1,3 @@
-// src/app/api/review/[token]/route.ts
-// GET — loads quote snapshot for customer review page
-
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -8,6 +5,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export async function GET(
   req: NextRequest,
@@ -29,7 +29,6 @@ export async function GET(
     return NextResponse.json({ error: 'This review link has already been used or expired.', status: data.status }, { status: 410 })
   }
 
-  // Mark as viewed
   if (data.status === 'pending') {
     await supabase
       .from('quote_review_tokens')
@@ -37,20 +36,17 @@ export async function GET(
       .eq('token', token)
   }
 
-  // Load enquiry details
   const { data: enquiry } = await supabase
     .from('enquiries')
     .select('customer_name, customer_email, event_type, event_date, guest_count, venue_name')
     .eq('id', data.enquiry_id)
     .single()
 
-  // Fetch tray items live from DB (bypasses snapshot empty array issue)
-  const { data: trayItems } = await supabase
+  const { data: trayItems, error: trayError } = await supabase
     .from('quote_tray_items')
     .select('*')
     .eq('quote_id', data.quote_id)
 
-  // Merge live tray items into snapshot
   const snapshot = {
     ...data.sent_snapshot,
     tray_items: (trayItems ?? []).map((item: any) => ({
@@ -71,7 +67,7 @@ export async function GET(
     round_number: data.round_number,
     enquiry,
     snapshot,
+    tray_debug: { count: trayItems?.length ?? 0, error: trayError?.message, quote_id: data.quote_id },
     customer_changes: data.customer_changes,
   })
 }
-// v2 - live tray fetch
