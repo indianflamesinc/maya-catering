@@ -342,10 +342,10 @@ export default function EnquiryDetailPage() {
               </div>
             )}
 
-            {(enquiry.cuisine_preferences?.length > 0 || enquiry.dietary_restrictions || enquiry.special_requirements) && (
+            {((enquiry.cuisine_preferences?.length ?? 0) > 0 || enquiry.dietary_restrictions || enquiry.special_requirements) && (
               <div className="border border-gold/20 bg-royal-mid p-6">
                 <div className="flex items-center gap-3 mb-4"><ChefHat size={14} className="text-gold" /><span className="font-cinzel text-[9px] tracking-[0.35em] uppercase text-gold">Menu Preferences</span></div>
-                {enquiry.cuisine_preferences?.length > 0 && (
+                {(enquiry.cuisine_preferences?.length ?? 0) > 0 && (
                   <div className="mb-4">
                     <span className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase text-gold/50 block mb-2">Cuisines</span>
                     <div className="flex flex-wrap gap-2">
