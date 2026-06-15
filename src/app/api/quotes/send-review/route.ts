@@ -19,9 +19,9 @@ function fmt(cents: number) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { enquiry_id, quote_id } = await req.json()
-    if (!enquiry_id || !quote_id) {
-      return NextResponse.json({ error: 'enquiry_id and quote_id required' }, { status: 400 })
+    const { enquiry_id } = await req.json()
+    if (!enquiry_id) {
+      return NextResponse.json({ error: 'enquiry_id required' }, { status: 400 })
     }
 
     // 1. Load enquiry
@@ -32,13 +32,16 @@ export async function POST(req: NextRequest) {
       .single()
     if (eErr || !enquiry) throw new Error('Enquiry not found')
 
-    // 2. Load quote
+    // 2. Load LATEST quote for this enquiry (always use most recent)
     const { data: quote, error: qErr } = await supabase
       .from('quotes')
       .select('*')
-      .eq('id', quote_id)
+      .eq('enquiry_id', enquiry_id)
+      .order('version', { ascending: false })
+      .limit(1)
       .single()
     if (qErr || !quote) throw new Error('Quote not found')
+    const quote_id = quote.id
 
     // 3. Load tray items
     const { data: trayItems } = await supabase
