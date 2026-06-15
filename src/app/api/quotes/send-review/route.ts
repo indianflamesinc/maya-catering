@@ -24,7 +24,11 @@ function getPricingLabel(pricingType: string): string {
 
 function getSizeOrType(item: any): string {
   if (item.pricing_type === 'tray') {
-    const sizes: Record<string, string> = { half: 'Small', medium: 'Medium', full: 'Full Tray', custom: 'Multiple' }
+    const sizes: Record<string, string> = {
+      half: 'Small', medium: 'Medium', full: 'Full Tray',
+      // FIX-006: show multiplier not "Multiple" for custom
+      custom: `${item.tray_quantity || 1}×`
+    }
     return sizes[item.tray_size] || item.tray_size || 'Tray'
   }
   return getPricingLabel(item.pricing_type)
@@ -32,7 +36,7 @@ function getSizeOrType(item: any): string {
 
 function getQty(item: any): string {
   if (item.pricing_type === 'per_person') return `${item.guest_count || item.tray_quantity || 1} ppl`
-  if (item.pricing_type === 'per_piece') return `${item.piece_count || item.tray_quantity || 1} pcs`
+  if (item.pricing_type === 'per_piece')  return `${item.piece_count || item.tray_quantity || 1} pcs`
   if (item.pricing_type === 'per_gallon') return `${item.piece_count || item.tray_quantity || 1} gal`
   if (item.pricing_type === 'per_portion') return `${item.piece_count || item.tray_quantity || 1} portions`
   if (item.tray_size === 'custom') return `${item.tray_quantity || 1}×`
@@ -42,47 +46,38 @@ function getQty(item: any): string {
 export async function POST(req: NextRequest) {
   try {
     const { enquiry_id } = await req.json()
-    if (!enquiry_id) {
-      return NextResponse.json({ error: 'enquiry_id required' }, { status: 400 })
-    }
+    if (!enquiry_id) return NextResponse.json({ error: 'enquiry_id required' }, { status: 400 })
 
-    // 1. Load enquiry
     const { data: enquiry, error: eErr } = await supabase
       .from('enquiries').select('*').eq('id', enquiry_id).single()
     if (eErr || !enquiry) throw new Error('Enquiry not found')
 
-    // 2. Load LATEST quote
     const { data: quote, error: qErr } = await supabase
       .from('quotes').select('*').eq('enquiry_id', enquiry_id)
       .order('version', { ascending: false }).limit(1).single()
     if (qErr || !quote) throw new Error('Quote not found')
     const quote_id = quote.id
 
-    // 3. Load tray items
     const { data: trayItems } = await supabase
       .from('quote_tray_items').select('*').eq('quote_id', quote_id)
 
-    // 4. Load per-person sessions
     const { data: sessions } = await supabase
       .from('quote_sessions')
       .select(`*, quote_session_categories(*, quote_session_dishes(*))`)
       .eq('quote_id', quote_id)
 
-    // 5. Determine round number
     const { count } = await supabase
       .from('quote_review_tokens')
       .select('*', { count: 'exact', head: true })
       .eq('enquiry_id', enquiry_id)
     const roundNumber = (count ?? 0) + 1
 
-    // 6. Expire previous pending tokens
     await supabase
       .from('quote_review_tokens')
       .update({ status: 'expired' })
       .eq('enquiry_id', enquiry_id)
       .eq('status', 'pending')
 
-    // 7. Build snapshot
     const snapshot = {
       catering_type: quote.catering_type,
       tray_items: (trayItems ?? []).map(item => ({
@@ -96,6 +91,8 @@ export async function POST(req: NextRequest) {
         piece_count: item.piece_count || null,
         unit_price_cents: item.unit_price_cents || 0,
         total_price_cents: item.total_price_cents || 0,
+        // FIX-026: save notes_to_customer in snapshot (falls back to customer_comments for old quotes)
+        notes_to_customer: item.notes_to_customer || item.customer_comments || '',
         customer_comments: '',
       })),
       sessions: (sessions ?? []).map(sess => ({
@@ -107,17 +104,14 @@ export async function POST(req: NextRequest) {
           category_name: cat.category_name,
           price_per_person: cat.price_per_person,
           dishes: (cat.quote_session_dishes ?? []).map((d: any) => ({
-            id: d.id,
-            dish_name: d.dish_name,
+            id: d.id, dish_name: d.dish_name,
           })),
         })),
       })),
       subtotal_cents: quote.subtotal_cents || 0,
-      // FIX-002 (Jun 15 2026): save fee fields so review page and email can show them
       delivery_fee_cents: quote.delivery_fee_cents || 0,
       setup_fee_cents: quote.setup_fee_cents || 0,
       service_fee_cents: quote.service_fee_cents || 0,
-      // END FIX-002
       discount_cents: quote.discount_cents || 0,
       tax_cents: quote.tax_cents || 0,
       total_cents: quote.total_cents || 0,
@@ -125,7 +119,6 @@ export async function POST(req: NextRequest) {
       balance_cents: Math.round((quote.total_cents || 0) * 0.8),
     }
 
-    // 8. Create token
     const { data: tokenRow, error: tErr } = await supabase
       .from('quote_review_tokens')
       .insert({
@@ -139,13 +132,11 @@ export async function POST(req: NextRequest) {
       .select().single()
     if (tErr) throw new Error('Failed to create review token: ' + tErr.message)
 
-    // 9. Update enquiry
     await supabase
       .from('enquiries')
       .update({ review_status: 'sent_for_review', latest_review_token_id: tokenRow.id })
       .eq('id', enquiry_id)
 
-    // 10. Build URLs and dates
     const reviewUrl = `${BASE_URL}/review/${tokenRow.token}`
     const eventDate = new Date(enquiry.event_date + 'T12:00:00').toLocaleDateString('en-US', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
@@ -153,26 +144,20 @@ export async function POST(req: NextRequest) {
     const eventType = (enquiry.event_type || '').split('_')
       .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 
-    // 11. Send email
     await sendReviewEmail({
       to: enquiry.customer_email,
       customerName: enquiry.customer_name,
-      eventType,
-      eventDate,
+      eventType, eventDate,
       venue: enquiry.venue_name || enquiry.venue_address || 'TBD',
       guestCount: enquiry.guest_count,
-      reviewUrl,
-      roundNumber,
-      snapshot,
+      reviewUrl, roundNumber, snapshot,
     })
 
-    // 12. WhatsApp message
     const shortMessage = buildShortMessage({
       customerName: enquiry.customer_name,
       eventDate,
       total: fmt(snapshot.total_cents),
-      reviewUrl,
-      roundNumber,
+      reviewUrl, roundNumber,
     })
 
     return NextResponse.json({
@@ -201,7 +186,6 @@ async function sendReviewEmail({
   const fmt2 = (cents: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 
-  // Build dish rows
   let dishRowsHtml = ''
 
   if (snapshot.catering_type === 'tray' || snapshot.catering_type === 'hybrid') {
@@ -212,10 +196,13 @@ async function sendReviewEmail({
         <th style="padding:10px;text-align:center;color:#05091A;font-size:11px">QTY</th>
         <th style="padding:10px;text-align:right;color:#05091A;font-size:11px">UNIT PRICE</th>
         <th style="padding:10px;text-align:right;color:#05091A;font-size:11px">TOTAL</th>
+        <th style="padding:10px;text-align:left;color:#05091A;font-size:11px">NOTES</th>
       </tr>`
 
     snapshot.tray_items.forEach((item: any, i: number) => {
       const bg = i % 2 === 0 ? '#ffffff' : '#f9f6f0'
+      // FIX-026: notes_to_customer shown in email table
+      const notes = item.notes_to_customer || ''
       dishRowsHtml += `
         <tr style="background:${bg}">
           <td style="padding:9px 10px;font-size:13px;color:#1a1a1a;font-weight:600">${item.dish_name}</td>
@@ -223,6 +210,7 @@ async function sendReviewEmail({
           <td style="padding:9px 10px;font-size:12px;color:#444;text-align:center">${getQty(item)}</td>
           <td style="padding:9px 10px;font-size:12px;color:#444;text-align:right">${fmt2(item.unit_price_cents)}</td>
           <td style="padding:9px 10px;font-size:13px;color:#C9A84C;font-weight:bold;text-align:right">${fmt2(item.total_price_cents)}</td>
+          <td style="padding:9px 10px;font-size:11px;color:#888;font-style:italic">${notes}</td>
         </tr>`
     })
   }
@@ -231,7 +219,7 @@ async function sendReviewEmail({
     snapshot.sessions.forEach((sess: any) => {
       dishRowsHtml += `
         <tr style="background:#0A1530">
-          <td colspan="5" style="padding:10px;color:#C9A84C;font-size:12px;font-weight:bold">
+          <td colspan="6" style="padding:10px;color:#C9A84C;font-size:12px;font-weight:bold">
             ${sess.session_name} — ${sess.guest_count} guests
           </td>
         </tr>`
@@ -247,6 +235,7 @@ async function sendReviewEmail({
             <td style="padding:9px 10px;font-size:13px;color:#C9A84C;font-weight:bold;text-align:right">
               ${fmt2(cat.price_per_person * sess.guest_count)}
             </td>
+            <td></td>
           </tr>`
       })
     })
@@ -256,24 +245,16 @@ async function sendReviewEmail({
     ? `Your Maya Catering Quote — ${eventType} on ${eventDate}`
     : `Updated Quote for Review (Round ${roundNumber}) — ${eventType} | Maya Catering`
 
-  // FIX-002: build fee rows for email (only shown if fee > 0)
   const feeRowsHtml = [
-    snapshot.delivery_fee_cents > 0
-      ? `<tr><td style="padding:6px 0;color:#666">Delivery Fee</td><td style="text-align:right;color:#333">${fmt2(snapshot.delivery_fee_cents)}</td></tr>`
-      : '',
-    snapshot.setup_fee_cents > 0
-      ? `<tr><td style="padding:6px 0;color:#666">Setup Fee</td><td style="text-align:right;color:#333">${fmt2(snapshot.setup_fee_cents)}</td></tr>`
-      : '',
-    snapshot.service_fee_cents > 0
-      ? `<tr><td style="padding:6px 0;color:#666">Service Fee</td><td style="text-align:right;color:#333">${fmt2(snapshot.service_fee_cents)}</td></tr>`
-      : '',
+    snapshot.delivery_fee_cents > 0 ? `<tr><td style="padding:6px 0;color:#666">Delivery Fee</td><td style="text-align:right;color:#333">${fmt2(snapshot.delivery_fee_cents)}</td></tr>` : '',
+    snapshot.setup_fee_cents > 0    ? `<tr><td style="padding:6px 0;color:#666">Setup Fee</td><td style="text-align:right;color:#333">${fmt2(snapshot.setup_fee_cents)}</td></tr>` : '',
+    snapshot.service_fee_cents > 0  ? `<tr><td style="padding:6px 0;color:#666">Service Fee</td><td style="text-align:right;color:#333">${fmt2(snapshot.service_fee_cents)}</td></tr>` : '',
   ].join('')
-  // END FIX-002
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f5f0e8;font-family:Georgia,serif">
-<div style="max-width:640px;margin:0 auto;background:#fff">
+<div style="max-width:660px;margin:0 auto;background:#fff">
   <div style="background:#05091A;padding:32px 40px;text-align:center">
     <div style="color:#C9A84C;font-size:22px;font-weight:bold;letter-spacing:3px">MAYA INDIAN CATERING</div>
     <div style="color:#F6EDD8;font-size:11px;margin-top:6px;letter-spacing:1px">33 Tuttle St, Wakefield MA · mayacater.com</div>
@@ -334,9 +315,7 @@ async function sendReviewEmail({
 
   await mailer.sendMail({
     from: `"Maya Indian Catering" <${process.env.GMAIL_USER}>`,
-    to,
-    subject,
-    html,
+    to, subject, html,
   })
 }
 

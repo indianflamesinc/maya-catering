@@ -55,7 +55,8 @@ export default function QuoteBuilderPage() {
         const gc = d.guest_count || 100
         setEnquiry(d)
         setSessions(prev => prev.map((s, i) => i === 0 ? { ...s, guest_count: gc } : s))
-        if (['wedding','engagement','sangeet','mehndi','baraat','corporate'].includes(d.event_type)) setCateringType('per_person')
+        // FIX-025 (Jun 15 2026): removed auto per_person switch — always default to tray
+        // Admin can manually switch if needed
         else setCateringType('tray')
 
         const qRes = await fetch(`/api/quotes?enquiry_id=${id}`)
@@ -128,6 +129,7 @@ export default function QuoteBuilderPage() {
                 // FIX-003: piece_count now saved to DB, read it back here
                 piece_count: item.piece_count || 1,
                 per_piece_price_cents: item.pricing_type === 'per_piece' ? item.unit_price_cents : 0,
+                notes_to_customer: item.notes_to_customer || item.customer_comments || '',  // FIX-026
                 customer_comments: item.customer_comments || '',
                 // FIX-011: attach customer feedback per dish for display in TrayItemsSection
                 customer_feedback: customerFeedbackMap[item.dish_name?.toLowerCase()] || undefined,

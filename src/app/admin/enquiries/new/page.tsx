@@ -2,12 +2,15 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Phone, Calendar, Users, MapPin, ChefHat, Save } from 'lucide-react'
+import { ArrowLeft, Phone, Calendar, MapPin, ChefHat, Save } from 'lucide-react'
 import { EventType, DeliveryType, HearAbout, EVENT_TYPE_LABELS, CUISINE_OPTIONS, EnquiryFormData } from '@/types/crm'
 
+// FIX-024 (Jun 15 2026): default event_type changed from 'wedding' to 'home_party'
+// Most enquiries are home events not weddings
 const EMPTY: EnquiryFormData = {
   customer_name: '', customer_phone: '', customer_email: '',
-  event_type: 'wedding' as EventType, event_date: '', event_time: '',
+  event_type: 'home_party' as EventType,  // FIX-024: was 'wedding'
+  event_date: '', event_time: '',
   venue_name: '', venue_address: '', guest_count: '',
   delivery_type: 'venue' as DeliveryType,
   cuisine_preferences: [], budget_min: '', budget_max: '',
@@ -46,10 +49,6 @@ export default function NewEnquiryPage() {
     )
   }
 
-  // FIX-009 (Jun 15 2026): changed andNext from 'tasting' to 'quote' | 'tasting'
-  // - 'quote'   → save then redirect to /admin/enquiries/[id]/quote
-  // - 'tasting' → save then redirect to /admin/enquiries/[id]/tasting (unchanged)
-  // - undefined → save then redirect to /admin/enquiries list (unchanged)
   async function handleSave(andNext?: 'quote' | 'tasting') {
     if (!form.customer_name || !form.customer_phone || !form.event_date) {
       setError('Please fill in customer name, phone and event date.')
@@ -70,15 +69,16 @@ export default function NewEnquiryPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Save failed')
-      // FIX-009: route to quote builder instead of tasting
-      if (andNext === 'quote')   router.push(`/admin/enquiries/${data.id}/quote`)
+      if (andNext === 'quote')        router.push(`/admin/enquiries/${data.id}/quote`)
       else if (andNext === 'tasting') router.push(`/admin/enquiries/${data.id}/tasting`)
-      else router.push('/admin/enquiries')
+      else                            router.push('/admin/enquiries')
     } catch (e: any) { setError(e.message) }
     setSaving(false)
   }
 
-  const eventDate = form.event_date ? new Date(form.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
+  const eventDate = form.event_date
+    ? new Date(form.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '—'
 
   return (
     <div className="min-h-screen bg-ink">
@@ -89,7 +89,6 @@ export default function NewEnquiryPage() {
           <h1 className="font-italiana text-[32px] text-cream leading-none">Capture Customer Call</h1>
         </div>
         <div className="ml-auto flex gap-3">
-          {/* FIX-009: replaced "Save + Schedule Tasting" with "Save + Quote" in header */}
           <button onClick={() => handleSave('quote')} disabled={saving}
             className="font-cinzel text-[8px] tracking-[0.22em] uppercase border border-gold/30 text-gold px-5 py-3 hover:bg-gold/10 transition-colors disabled:opacity-40">
             Save + Quote
@@ -165,7 +164,7 @@ export default function NewEnquiryPage() {
             <div className="border border-gold/20 bg-royal-mid p-7">
               <div className="flex items-center gap-3 mb-6"><MapPin size={16} className="text-gold" /><span className="font-cinzel text-[9px] tracking-[0.35em] uppercase text-gold">Venue Details</span></div>
               <div className="grid grid-cols-1 gap-5">
-                <Field label="Venue Name"><input value={form.venue_name} onChange={e => set('venue_name', e.target.value)} className={inp} placeholder="Marriott Peabody, Burlington Marriott..." /></Field>
+                <Field label="Venue Name"><input value={form.venue_name} onChange={e => set('venue_name', e.target.value)} className={inp} placeholder="Marriott Peabody, Burlington Marriott, Home Address..." /></Field>
                 <Field label="Venue Address"><input value={form.venue_address} onChange={e => set('venue_address', e.target.value)} className={inp} placeholder="Full venue address" /></Field>
               </div>
             </div>
@@ -195,10 +194,25 @@ export default function NewEnquiryPage() {
             <div className="border border-gold/30 bg-gold/5 p-5">
               <span className="font-cinzel text-[8px] tracking-[0.3em] uppercase text-gold block mb-4">Enquiry Summary</span>
               <div className="flex flex-col gap-2.5 text-[13px]">
-                {[['Customer', form.customer_name || '—'], ['Phone', form.customer_phone || '—'], ['Event', EVENT_TYPE_LABELS[form.event_type as EventType]], ['Date', eventDate], ['Guests', form.guest_count ? `${form.guest_count} guests` : '—'], ['Venue', form.venue_name || '—']].map(([l, v]) => (
-                  <div key={l} className="flex justify-between"><span className="text-cream/50">{l}</span><span className="text-cream text-right max-w-[180px]">{v}</span></div>
+                {[
+                  ['Customer', form.customer_name || '—'],
+                  ['Phone', form.customer_phone || '—'],
+                  ['Event', EVENT_TYPE_LABELS[form.event_type as EventType]],
+                  ['Date', eventDate],
+                  ['Guests', form.guest_count ? `${form.guest_count} guests` : '—'],
+                  ['Venue', form.venue_name || '—'],
+                ].map(([l, v]) => (
+                  <div key={l} className="flex justify-between">
+                    <span className="text-cream/50">{l}</span>
+                    <span className="text-cream text-right max-w-[180px]">{v}</span>
+                  </div>
                 ))}
-                {form.budget_min && <div className="flex justify-between"><span className="text-cream/50">Budget</span><span className="text-cream">${form.budget_min}{form.budget_max ? ` – $${form.budget_max}` : '+'}</span></div>}
+                {form.budget_min && (
+                  <div className="flex justify-between">
+                    <span className="text-cream/50">Budget</span>
+                    <span className="text-cream">${form.budget_min}{form.budget_max ? ` – $${form.budget_max}` : '+'}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -221,7 +235,6 @@ export default function NewEnquiryPage() {
               <button onClick={() => handleSave()} disabled={saving} className="btn-royal w-full text-center flex items-center justify-center gap-2">
                 <Save size={14} />{saving ? 'Saving...' : 'Save Enquiry'}
               </button>
-              {/* FIX-009: bottom buttons — Save+Quote (primary action) + Save+Tasting (secondary) */}
               <button onClick={() => handleSave('quote')} disabled={saving} className="btn-ghost w-full text-center">Save + Quote</button>
               <button onClick={() => handleSave('tasting')} disabled={saving} className="btn-ghost w-full text-center opacity-50 text-[11px]">Save + Schedule Tasting</button>
               <Link href="/admin/enquiries" className="block text-center font-cinzel text-[8px] tracking-[0.2em] uppercase text-cream/30 hover:text-cream/60 transition-colors mt-1">Cancel</Link>

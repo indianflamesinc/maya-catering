@@ -135,6 +135,7 @@ export async function POST(req: NextRequest) {
             // in ReviewRoundsPanel to show "†" (dash) for per_piece and per_gallon items
             piece_count: item.piece_count || null,
             customer_comments: item.customer_comments || null,
+            notes_to_customer: item.notes_to_customer || null,  // FIX-026
             sort_order: i,
           }
         }))

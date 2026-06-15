@@ -10,15 +10,16 @@ export interface TrayLineItem {
   dish_name: string
   pricing_type: PricingType
   tray_size?: TraySize
-  tray_quantity?: number        // supports 1, 1.5, 2, 2.5 etc
+  tray_quantity?: number
   unit_price_cents: number
   guest_count?: number
   per_person_price_cents?: number
   piece_count?: number
   per_piece_price_cents?: number
-  customer_comments: string
-  // FIX-008 (Jun 15 2026): added customer_feedback field to show what customer
-  // requested in their review (read-only, displayed below the line item)
+  // FIX-026 (Jun 15 2026): renamed customer_comments → notes_to_customer
+  // These notes appear in ALL quote emails (Round 1 and Round 2) in the dish table
+  // Previously called 'customer_comments' but was never shown to customer — now it is
+  notes_to_customer: string
   customer_feedback?: string
   master_id?: string
 }
@@ -41,11 +42,11 @@ const TRAY_SIZES: { value: TraySize; label: string; note: string }[] = [
 ]
 
 const PRICING_TYPES: { value: PricingType; label: string; unit: string }[] = [
-  { value: 'tray',        label: 'Per Tray',    unit: 'tray'    },
-  { value: 'per_person',  label: 'Per Person',  unit: 'ppl'     },
-  { value: 'per_piece',   label: 'Per Piece',   unit: 'pcs'     },
-  { value: 'per_gallon',  label: 'Per Gallon',  unit: 'gal'     },
-  { value: 'per_portion', label: 'Per Portion', unit: 'portions'},
+  { value: 'tray',        label: 'Per Tray',    unit: 'tray'     },
+  { value: 'per_person',  label: 'Per Person',  unit: 'ppl'      },
+  { value: 'per_piece',   label: 'Per Piece',   unit: 'pcs'      },
+  { value: 'per_gallon',  label: 'Per Gallon',  unit: 'gal'      },
+  { value: 'per_portion', label: 'Per Portion', unit: 'portions' },
 ]
 
 const CAT_LABELS: Record<string, string> = {
@@ -58,9 +59,7 @@ const CAT_LABELS: Record<string, string> = {
 
 export function calcLineTotal(item: TrayLineItem): number {
   if (item.pricing_type === 'tray') {
-    if (item.tray_size === 'custom') {
-      return Math.round((item.tray_quantity || 1) * (item.unit_price_cents || 0))
-    }
+    if (item.tray_size === 'custom') return Math.round((item.tray_quantity || 1) * (item.unit_price_cents || 0))
     return item.unit_price_cents || 0
   }
   if (item.pricing_type === 'per_person')  return (item.guest_count || 0) * (item.per_person_price_cents || 0)
@@ -136,7 +135,7 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
       per_person_price_cents: dish.per_person_cents || 0,
       piece_count: 1,
       per_piece_price_cents: dish.per_piece_cents || 0,
-      customer_comments: '',
+      notes_to_customer: '',  // FIX-026: renamed from customer_comments
     }])
     setShowPicker(false); setSearch('')
   }
@@ -146,7 +145,8 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
       id: uid(), dish_name: '', pricing_type: 'tray',
       tray_size: 'medium', tray_quantity: 1, unit_price_cents: 0,
       guest_count: guestCount, per_person_price_cents: 0,
-      piece_count: 1, per_piece_price_cents: 0, customer_comments: '',
+      piece_count: 1, per_piece_price_cents: 0,
+      notes_to_customer: '',  // FIX-026
     }])
   }
 
@@ -174,13 +174,14 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
     return acc
   }, {} as Record<string, MasterMenuItem[]>)
 
+  // FIX-026: added Notes to Customer column
   const colStyle = { gridTemplateColumns: '2fr 120px 180px 100px 100px 1fr 28px' }
 
   return (
     <div>
       {items.length > 0 && (
         <div className="grid gap-3 mb-2 px-2" style={colStyle}>
-          {['Dish', 'Pricing', 'Size / Count', 'Qty/Multiplier', 'Unit Price', 'Comments', ''].map(h => (
+          {['Dish', 'Pricing', 'Size / Count', 'Qty/Multiplier', 'Unit Price', 'Notes to Customer', ''].map(h => (
             <span key={h} className="font-cinzel text-[7px] tracking-[0.18em] uppercase text-gold/50">{h}</span>
           ))}
         </div>
@@ -216,9 +217,7 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
               <select value={item.pricing_type}
                 onChange={e => updateItem(item.id, { pricing_type: e.target.value as PricingType })}
                 className="bg-[#0a1428] border border-gold/30 text-cream font-jost font-light text-[12px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm">
-                {PRICING_TYPES.map(p => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
+                {PRICING_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
 
               {/* Size / Count */}
@@ -226,9 +225,7 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
                 <select value={item.tray_size}
                   onChange={e => updateItem(item.id, { tray_size: e.target.value as TraySize })}
                   className="bg-[#0a1428] border border-gold/30 text-cream font-jost font-light text-[12px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm">
-                  {TRAY_SIZES.map(s => (
-                    <option key={s.value} value={s.value}>{s.label} ({s.note})</option>
-                  ))}
+                  {TRAY_SIZES.map(s => <option key={s.value} value={s.value}>{s.label} ({s.note})</option>)}
                 </select>
               ) : (
                 <QtyInput
@@ -242,16 +239,8 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
               )}
 
               {/* Qty / Multiplier */}
-              {item.pricing_type === 'tray' ? (
-                item.tray_size === 'custom' ? (
-                  <QtyInput
-                    value={item.tray_quantity || 1}
-                    onChange={v => updateItem(item.id, { tray_quantity: v })}
-                    unit="× full"
-                  />
-                ) : (
-                  <div className="text-cream/20 text-[11px] flex items-center justify-center">—</div>
-                )
+              {item.pricing_type === 'tray' && item.tray_size === 'custom' ? (
+                <QtyInput value={item.tray_quantity || 1} onChange={v => updateItem(item.id, { tray_quantity: v })} unit="× full" />
               ) : (
                 <div className="text-cream/20 text-[11px] flex items-center justify-center">—</div>
               )}
@@ -259,8 +248,8 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
               {/* Unit price */}
               <PriceInput
                 cents={
-                  item.pricing_type === 'per_person'  ? (item.per_person_price_cents || 0) :
-                  item.pricing_type === 'per_piece'   ? (item.per_piece_price_cents  || 0) :
+                  item.pricing_type === 'per_person' ? (item.per_person_price_cents || 0) :
+                  item.pricing_type === 'per_piece'  ? (item.per_piece_price_cents  || 0) :
                   (item.unit_price_cents || 0)
                 }
                 onChange={c => {
@@ -270,11 +259,11 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
                 }}
               />
 
-              {/* Admin comments (internal kitchen notes) */}
-              <input value={item.customer_comments}
-                onChange={e => updateItem(item.id, { customer_comments: e.target.value })}
+              {/* FIX-026: Notes to Customer — shown in email */}
+              <input value={item.notes_to_customer || ''}
+                onChange={e => updateItem(item.id, { notes_to_customer: e.target.value })}
                 className="bg-transparent border-b border-gold/15 text-cream/70 font-jost font-light text-[12px] outline-none placeholder:text-cream/15 focus:border-gold/40 transition-colors w-full pb-1"
-                placeholder="e.g. mild spicy, no onion..." />
+                placeholder="e.g. comes with chutney, mild spicy..." />
 
               {/* Delete */}
               <button onClick={() => onChange(items.filter(i => i.id !== item.id))}
@@ -285,27 +274,18 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
               {/* Line total */}
               <div className="col-span-7 flex items-center justify-between mt-0.5 pt-1.5 border-t border-gold/10">
                 <span className="text-cream/25 text-[10px] font-cinzel tracking-wider">
-                  {item.pricing_type === 'tray' && item.tray_size !== 'custom' &&
-                    `${TRAY_SIZES.find(s => s.value === item.tray_size)?.label}`}
-                  {item.pricing_type === 'tray' && item.tray_size === 'custom' &&
-                    `${item.tray_quantity}× full tray × ${fmt(item.unit_price_cents)}`}
-                  {item.pricing_type === 'per_person' &&
-                    `${item.guest_count} people × ${fmt(item.per_person_price_cents || 0)}/pp`}
-                  {item.pricing_type === 'per_piece' &&
-                    `${item.piece_count} pcs × ${fmt(item.per_piece_price_cents || 0)}/pc`}
-                  {item.pricing_type === 'per_gallon' &&
-                    `${item.piece_count} gal × ${fmt(item.unit_price_cents)}/gal`}
-                  {item.pricing_type === 'per_portion' &&
-                    `${item.piece_count} portions × ${fmt(item.unit_price_cents)}/portion`}
+                  {item.pricing_type === 'tray' && item.tray_size !== 'custom' && TRAY_SIZES.find(s => s.value === item.tray_size)?.label}
+                  {item.pricing_type === 'tray' && item.tray_size === 'custom' && `${item.tray_quantity}× full tray × ${fmt(item.unit_price_cents)}`}
+                  {item.pricing_type === 'per_person' && `${item.guest_count} people × ${fmt(item.per_person_price_cents || 0)}/pp`}
+                  {item.pricing_type === 'per_piece'  && `${item.piece_count} pcs × ${fmt(item.per_piece_price_cents || 0)}/pc`}
+                  {item.pricing_type === 'per_gallon' && `${item.piece_count} gal × ${fmt(item.unit_price_cents)}/gal`}
+                  {item.pricing_type === 'per_portion' && `${item.piece_count} portions × ${fmt(item.unit_price_cents)}/portion`}
                 </span>
                 <span className="text-gold font-italiana text-[18px]">{fmt(lineTotal)}</span>
               </div>
             </div>
 
-            {/* FIX-008 (Jun 15 2026): show customer feedback below each line item when editing quote
-                after customer has submitted review. customer_feedback is loaded from the review round's
-                customer_changes array when the quote builder initialises from a review round.
-                Shown as gold banner so admin can see what to update for each dish. */}
+            {/* Customer feedback banner from review round */}
             {item.customer_feedback && (
               <div className="flex items-start gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 border-t-0 rounded-b-sm">
                 <MessageSquare size={11} className="text-amber-400 mt-0.5 flex-shrink-0" />
@@ -351,7 +331,7 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
         </p>
       </div>
 
-      {/* Menu picker popup */}
+      {/* Menu picker */}
       {showPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 backdrop-blur-sm"
           onClick={() => setShowPicker(false)}>
@@ -380,15 +360,9 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
                         <span className="text-cream text-[13px]">{dish.name}</span>
                       </div>
                       <div className="flex gap-3 text-[11px] text-cream/40">
-                        {dish.has_tray && dish.medium_tray_cents > 0 && (
-                          <span>S:{fmt(dish.half_tray_cents)} M:{fmt(dish.medium_tray_cents)} F:{fmt(dish.full_tray_cents)}</span>
-                        )}
-                        {dish.has_per_person && dish.per_person_cents > 0 && (
-                          <span className="text-amber-400/70">👤 {fmt(dish.per_person_cents)}/pp</span>
-                        )}
-                        {dish.has_per_piece && dish.per_piece_cents > 0 && (
-                          <span className="text-teal-400/70">🔢 {fmt(dish.per_piece_cents)}/pc</span>
-                        )}
+                        {dish.has_tray && dish.medium_tray_cents > 0 && <span>S:{fmt(dish.half_tray_cents)} M:{fmt(dish.medium_tray_cents)} F:{fmt(dish.full_tray_cents)}</span>}
+                        {dish.has_per_person && dish.per_person_cents > 0 && <span className="text-amber-400/70">👤 {fmt(dish.per_person_cents)}/pp</span>}
+                        {dish.has_per_piece && dish.per_piece_cents > 0 && <span className="text-teal-400/70">🔢 {fmt(dish.per_piece_cents)}/pc</span>}
                       </div>
                     </button>
                   ))}
