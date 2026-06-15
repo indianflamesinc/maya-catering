@@ -167,9 +167,15 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate }: Props) 
                         </thead>
                         <tbody>
                           {diff.map((d, i) => (
+                            <>
                             <tr key={i} className="border-b border-gold/5">
-                              <td className="py-2 pr-3 text-cream/80 font-medium">{d.dish}</td>
-                              <td className="py-2 pr-3 text-cream/30 text-right line-through">{d.original_qty}</td>
+                              <td className="py-2 pr-3 text-cream/80 font-medium">
+                                {d.dish}
+                                {d.comments && (
+                                  <div className="text-[10px] text-yellow-300/60 mt-0.5 italic">{d.comments}</div>
+                                )}
+                              </td>
+                              <td className="py-2 pr-3 text-cream/30 text-right">{d.original_qty !== '—' ? <span className="line-through">{d.original_qty}</span> : '—'}</td>
                               <td className="py-2 pr-3 text-green-400 font-bold text-right">{d.updated_qty}</td>
                               <td className="py-2 pr-3 text-cream/40 text-right">
                                 {d.unit_price > 0 ? fmt(d.unit_price) : '—'}
@@ -178,6 +184,7 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate }: Props) 
                                 {d.unit_price > 0 ? fmt(d.unit_price * parseFloat(String(d.updated_qty))) : '—'}
                               </td>
                             </tr>
+                            </>
                           ))}
                         </tbody>
                       </table>
@@ -272,12 +279,17 @@ function computeDiff(snapshot: any[], changes: any[]) {
     const orig = snapshot.find(
       (o: any) => o.id === change.id || o.dish_name?.toLowerCase() === change.dish_name?.toLowerCase()
     )
-    const origQty  = orig ? parseFloat(orig.tray_quantity) : null
-    const newQty   = parseFloat(change.tray_quantity)
-    const unitPrice = orig?.unit_price_cents ?? change.unit_price_cents ?? 0
-    if (origQty === null || String(origQty) !== String(newQty)) {
-      diffs.push({ dish: change.dish_name, original_qty: origQty ?? '—', updated_qty: newQty, unit_price: unitPrice })
-    }
+    const origQty   = orig ? parseFloat(orig.tray_quantity) : null
+    const newQty    = parseFloat(change.tray_quantity)
+    const unitPrice = change.unit_price_cents ?? orig?.unit_price_cents ?? 0
+    // Always show the change — use original qty from snapshot if available
+    diffs.push({
+      dish: change.dish_name,
+      original_qty: origQty ?? '—',
+      updated_qty: newQty,
+      unit_price: unitPrice,
+      comments: change.customer_comments || '',
+    })
   }
   return diffs
 }
