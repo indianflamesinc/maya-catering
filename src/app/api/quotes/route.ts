@@ -41,6 +41,11 @@ export async function POST(req: NextRequest) {
       delivery_cents, total_cents,
       change_notes, status,
       sessions, tray_items,
+      // FIX-005 (Jun 15 2026): added fee fields — were not being saved to DB
+      // These columns were also missing from the quotes table (added via SQL ALTER TABLE)
+      delivery_fee_cents, setup_fee_cents, service_fee_cents,
+      // FIX-005: discount_cents is the computed dollar amount saved separately for snapshot use
+      discount_cents,
     } = body
 
     // Get current version number for this enquiry
@@ -59,7 +64,8 @@ export async function POST(req: NextRequest) {
       .update({ is_current: false })
       .eq('enquiry_id', enquiry_id)
 
-    // Create new quote
+    // FIX-005: now saving delivery_fee_cents, setup_fee_cents, service_fee_cents, discount_cents
+    // Previously these were missing → fees showed $0 in email even when entered in Quote Builder
     const { data: quote, error: quoteError } = await supabaseAdmin
       .from('quotes')
       .insert({
@@ -79,6 +85,11 @@ export async function POST(req: NextRequest) {
         change_notes: change_notes || null,
         status: status || 'draft',
         sent_at: status === 'sent' ? new Date().toISOString() : null,
+        // FIX-005: fee columns (require SQL: ALTER TABLE quotes ADD COLUMN IF NOT EXISTS ...)
+        delivery_fee_cents: delivery_fee_cents || 0,
+        setup_fee_cents: setup_fee_cents || 0,
+        service_fee_cents: service_fee_cents || 0,
+        discount_cents: discount_cents || 0,
       })
       .select()
       .single()
@@ -90,16 +101,13 @@ export async function POST(req: NextRequest) {
       const { error: trayError } = await supabaseAdmin
         .from('quote_tray_items')
         .insert(tray_items.map((item: any, i: number) => {
-          // Map correct price field based on pricing type
           const pricingType = item.pricing_type || 'tray'
 
-          // Resolve unit price based on pricing type
           const unitPrice =
             pricingType === 'per_person'  ? (item.per_person_price_cents || item.unit_price_cents || 0) :
             pricingType === 'per_piece'   ? (item.per_piece_price_cents  || item.unit_price_cents || 0) :
             (item.unit_price_cents || 0)
 
-          // Calculate total based on pricing type
           let totalPrice = 0
           if (pricingType === 'per_person') {
             totalPrice = (item.guest_count || 0) * unitPrice
@@ -107,10 +115,8 @@ export async function POST(req: NextRequest) {
             totalPrice = (item.piece_count || 0) * unitPrice
           } else if (pricingType === 'tray') {
             if (item.tray_size === 'custom') {
-              // Multiple trays: tray_quantity × full tray price
               totalPrice = Math.round((item.tray_quantity || 1) * unitPrice)
             } else {
-              // Fixed tray size: price is already set for that size
               totalPrice = unitPrice
             }
           }
@@ -125,6 +131,8 @@ export async function POST(req: NextRequest) {
             unit_price_cents: unitPrice,
             total_price_cents: totalPrice,
             guest_count: item.guest_count || null,
+            // FIX-003 (Jun 15 2026): piece_count was not being saved — caused WAS column
+            // in ReviewRoundsPanel to show "†" (dash) for per_piece and per_gallon items
             piece_count: item.piece_count || null,
             customer_comments: item.customer_comments || null,
             sort_order: i,
@@ -152,7 +160,6 @@ export async function POST(req: NextRequest) {
 
         if (sessError) { console.error('Session error:', sessError); continue }
 
-        // Save categories
         for (const cat of sess.categories) {
           const { data: catData, error: catError } = await supabaseAdmin
             .from('quote_session_categories')
@@ -166,7 +173,6 @@ export async function POST(req: NextRequest) {
 
           if (catError) { console.error('Cat error:', catError); continue }
 
-          // Save dishes
           if (cat.dishes?.length > 0) {
             await supabaseAdmin
               .from('quote_session_dishes')
@@ -182,7 +188,6 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Save labour
         if (sess.labour_staff > 0) {
           await supabaseAdmin
             .from('quote_labour')
@@ -198,7 +203,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Update enquiry status to 'quoted' if sending
     if (status === 'sent') {
       await supabaseAdmin
         .from('enquiries')

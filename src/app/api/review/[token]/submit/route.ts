@@ -18,7 +18,6 @@ export async function POST(
     const { token } = params
     const { changes, overall_comments } = await req.json()
 
-    // Load token
     const { data: tokenRow, error } = await supabase
       .from('quote_review_tokens')
       .select('*')
@@ -33,10 +32,8 @@ export async function POST(
       return NextResponse.json({ error: 'Already submitted' }, { status: 410 })
     }
 
-    // Compute diff vs snapshot
     const diff = computeDiff(tokenRow.sent_snapshot, changes)
 
-    // Mark token as submitted (expires on submit)
     await supabase
       .from('quote_review_tokens')
       .update({
@@ -47,20 +44,17 @@ export async function POST(
       })
       .eq('token', token)
 
-    // Update enquiry review status
     await supabase
       .from('enquiries')
       .update({ review_status: 'customer_responded' })
       .eq('id', tokenRow.enquiry_id)
 
-    // Load enquiry for notification
     const { data: enquiry } = await supabase
       .from('enquiries')
       .select('customer_name, customer_email, event_type, event_date')
       .eq('id', tokenRow.enquiry_id)
       .single()
 
-    // Notify Ashok by email
     await notifyAdmin({
       enquiryId: tokenRow.enquiry_id,
       roundNumber: tokenRow.round_number,
@@ -81,6 +75,22 @@ export async function POST(
   }
 }
 
+// FIX-003 (Jun 15 2026): WAS column showed "†" (dash) for all items because
+// computeDiff was comparing tray_quantity for ALL pricing types.
+// Per_person items store qty in guest_count; per_piece/per_gallon in piece_count.
+// Fix: getDisplayQty() reads the correct field per pricing_type, matching how
+// the review page sends back changes (always in tray_quantity field from customer form).
+function getDisplayQty(item: any): number {
+  if (!item) return 0
+  if (item.pricing_type === 'per_person') return item.guest_count || item.tray_quantity || 0
+  if (item.pricing_type === 'per_piece' || item.pricing_type === 'per_gallon' || item.pricing_type === 'per_portion') {
+    return item.piece_count || item.tray_quantity || 0
+  }
+  // tray: use tray_quantity for 'custom' (multiple), else 1
+  if (item.tray_size === 'custom') return item.tray_quantity || 1
+  return 1
+}
+
 function computeDiff(snapshot: any, changes: any[]): any[] {
   const diffs: any[] = []
   const originalItems = snapshot?.tray_items ?? []
@@ -91,11 +101,26 @@ function computeDiff(snapshot: any, changes: any[]): any[] {
     )
     if (!original) continue
 
-    if (String(original.tray_quantity) !== String(change.tray_quantity)) {
-      diffs.push({ dish: change.dish_name, field: 'Quantity', original: original.tray_quantity, updated: change.tray_quantity })
+    // FIX-003: use getDisplayQty so WAS shows the real original qty
+    const originalQty = getDisplayQty(original)
+    const newQty = Number(change.tray_quantity)
+
+    if (originalQty !== newQty) {
+      diffs.push({
+        dish: change.dish_name,
+        field: 'Quantity',
+        original: originalQty,
+        updated: newQty,
+      })
     }
-    if (change.customer_comments && change.customer_comments !== original.customer_comments) {
-      diffs.push({ dish: change.dish_name, field: 'Comments', original: original.customer_comments || '(none)', updated: change.customer_comments })
+
+    if (change.customer_comments && change.customer_comments !== (original.customer_comments || '')) {
+      diffs.push({
+        dish: change.dish_name,
+        field: 'Comments',
+        original: original.customer_comments || '(none)',
+        updated: change.customer_comments,
+      })
     }
   }
   return diffs

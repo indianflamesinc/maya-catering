@@ -57,8 +57,10 @@ export default function QuoteBuilderPage() {
         setSessions(prev => prev.map((s, i) => i === 0 ? { ...s, guest_count: gc } : s))
         if (['wedding','engagement','sangeet','mehndi','baraat','corporate'].includes(d.event_type)) setCateringType('per_person')
         else setCateringType('tray')
+
         const qRes = await fetch(`/api/quotes?enquiry_id=${id}`)
         const qData = await qRes.json()
+
         if (qData.quotes?.length > 0) {
           const q = qData.quotes[0]
           setExistingVersion(q.version)
@@ -66,24 +68,73 @@ export default function QuoteBuilderPage() {
           if (q.discount_type) setDiscountType(q.discount_type)
           if (q.discount_value) setDiscountValue(String(q.discount_value))
           if (q.discount_note) setDiscountNote(q.discount_note)
-          if (q.delivery_cents) setDeliveryFee(String(q.delivery_cents / 100))
-          if (q.setup_cents) setSetupFee(String(q.setup_cents / 100))
-          if (q.service_cents) setServiceFee(String(q.service_cents / 100))
+
+          // FIX-005 (Jun 15 2026): restore all 3 fee fields from DB
+          // Previously only delivery_cents was read; setup_cents / service_cents were ignored.
+          // Also changed field names: API now saves delivery_fee_cents / setup_fee_cents / service_fee_cents.
+          // We fall back to the old delivery_cents field for backwards compat with pre-FIX-005 quotes.
+          const deliveryCents = q.delivery_fee_cents || q.delivery_cents || 0
+          const setupCents    = q.setup_fee_cents    || q.setup_cents    || 0
+          const serviceCents  = q.service_fee_cents  || q.service_cents  || 0
+          if (deliveryCents) setDeliveryFee(String(deliveryCents / 100))
+          if (setupCents)    setSetupFee(String(setupCents / 100))
+          if (serviceCents)  setServiceFee(String(serviceCents / 100))
+          // END FIX-005
+
           if (q.change_notes) setChangeNotes(q.change_notes)
-          if (q.quote_tray_items?.length > 0) {
-            setTrayItems(q.quote_tray_items.map((item: any) => ({
-              id: uid(), dish_name: item.dish_name,
-              pricing_type: item.pricing_type || 'tray',
-              tray_size: item.tray_size || 'medium',
-              quantity: item.quantity || 1,
-              unit_price_cents: item.unit_price_cents || 0,
-              guest_count: item.guest_count || gc,
-              per_person_price_cents: item.pricing_type === 'per_person' ? item.unit_price_cents : 0,
-              piece_count: item.piece_count || 1,
-              per_piece_price_cents: item.pricing_type === 'per_piece' ? item.unit_price_cents : 0,
-              customer_comments: item.customer_comments || '',
-            })))
+
+          // FIX-011 (Jun 15 2026): load customer feedback from latest review round
+          // so it shows as amber banners on each dish row in TrayItemsSection.
+          // Fetch review rounds and find the most recent submitted one.
+          let customerFeedbackMap: Record<string, string> = {}
+          try {
+            const rRes = await fetch(`/api/quotes/review-rounds?enquiry_id=${id}`)
+            const rData = await rRes.json()
+            const rounds = rData.rounds || []
+            // Find latest submitted round
+            const latestSubmitted = rounds.find((r: any) => r.status === 'submitted')
+            if (latestSubmitted?.customer_changes) {
+              // Build map: dish_name (lowercase) → comment
+              for (const change of latestSubmitted.customer_changes) {
+                if (change.customer_comments) {
+                  customerFeedbackMap[change.dish_name?.toLowerCase()] = change.customer_comments
+                }
+              }
+            }
+          } catch(e) {
+            // Non-fatal: if review rounds fail to load, just skip customer feedback
+            console.warn('Could not load review rounds for customer feedback:', e)
           }
+          // END FIX-011
+
+          if (q.quote_tray_items?.length > 0) {
+            setTrayItems(q.quote_tray_items.map((item: any) => {
+              // FIX-010 (Jun 15 2026): tray_quantity was undefined for 'custom' items on load
+              // because it wasn't being read from DB. This caused "UNDEFINED× FULL TRAY" label.
+              // Fix: explicitly read tray_quantity from DB item.
+              const trayQty = item.tray_quantity || 1
+
+              return {
+                id: uid(),
+                dish_name: item.dish_name,
+                pricing_type: item.pricing_type || 'tray',
+                tray_size: item.tray_size || 'medium',
+                // FIX-010: use tray_quantity from DB, not undefined
+                tray_quantity: trayQty,
+                quantity: item.quantity || 1,
+                unit_price_cents: item.unit_price_cents || 0,
+                guest_count: item.guest_count || gc,
+                per_person_price_cents: item.pricing_type === 'per_person' ? item.unit_price_cents : 0,
+                // FIX-003: piece_count now saved to DB, read it back here
+                piece_count: item.piece_count || 1,
+                per_piece_price_cents: item.pricing_type === 'per_piece' ? item.unit_price_cents : 0,
+                customer_comments: item.customer_comments || '',
+                // FIX-011: attach customer feedback per dish for display in TrayItemsSection
+                customer_feedback: customerFeedbackMap[item.dish_name?.toLowerCase()] || undefined,
+              }
+            }))
+          }
+
           if (q.quote_sessions?.length > 0) {
             setSessions(q.quote_sessions.map((sess: any) => ({
               id: uid(), session_name: sess.session_name, guest_count: sess.guest_count,
@@ -135,8 +186,42 @@ export default function QuoteBuilderPage() {
   async function handleSave(sendToCustomer = false) {
     setSaving(true); setError('')
     try {
-      const res = await fetch('/api/quotes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enquiry_id: id, catering_type: cateringType, subtotal_cents: sub, labour_cents: labour, discount_type: discountType === 'none' ? null : discountType, discount_value: discountType === 'none' ? 0 : Math.round(parseFloat(discountValue)||0), discount_amount_cents: disc, discount_note: discountNote||null, tax_rate: 7, tax_cents: tax, delivery_cents: Math.round((parseFloat(deliveryFee)||0)*100), setup_cents: Math.round((parseFloat(setupFee)||0)*100), service_cents: Math.round((parseFloat(serviceFee)||0)*100), total_cents: total, change_notes: changeNotes||null, status: sendToCustomer ? 'sent' : 'draft', sessions: cateringType !== 'tray' ? sessions : [], tray_items: cateringType === 'tray' ? trayItems : [] }) })
+      const deliveryCents = Math.round((parseFloat(deliveryFee)||0)*100)
+      const setupCents    = Math.round((parseFloat(setupFee)||0)*100)
+      const serviceCents  = Math.round((parseFloat(serviceFee)||0)*100)
+
+      // FIX-005 (Jun 15 2026): send all fee fields with BOTH old and new field names
+      // for backwards compatibility. API route now reads delivery_fee_cents etc.
+      const res = await fetch('/api/quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enquiry_id: id,
+          catering_type: cateringType,
+          subtotal_cents: sub,
+          labour_cents: labour,
+          discount_type: discountType === 'none' ? null : discountType,
+          discount_value: discountType === 'none' ? 0 : Math.round(parseFloat(discountValue)||0),
+          discount_amount_cents: disc,
+          discount_cents: disc,           // FIX-005: new field for snapshot
+          discount_note: discountNote||null,
+          tax_rate: 7,
+          tax_cents: tax,
+          // Old field names (keep for backwards compat)
+          delivery_cents: deliveryCents,
+          setup_cents: setupCents,
+          service_cents: serviceCents,
+          // FIX-005: new field names saved to DB columns
+          delivery_fee_cents: deliveryCents,
+          setup_fee_cents: setupCents,
+          service_fee_cents: serviceCents,
+          total_cents: total,
+          change_notes: changeNotes||null,
+          status: sendToCustomer ? 'sent' : 'draft',
+          sessions: cateringType !== 'tray' ? sessions : [],
+          tray_items: cateringType === 'tray' ? trayItems : [],
+        }),
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Save failed')
       setSaved(true); setExistingVersion(data.version); setTimeout(() => setSaved(false), 3000)
@@ -172,7 +257,7 @@ export default function QuoteBuilderPage() {
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-8">
           <div className="flex flex-col gap-6">
 
-            {/* Step 1 */}
+            {/* Step 1: Catering Type */}
             <div className="border border-gold/20 bg-royal-mid p-7">
               <div className="flex items-center gap-3 mb-5"><span className="text-lg">1️⃣</span><span className="font-cinzel text-[9px] tracking-[0.35em] uppercase text-gold">Catering Type</span></div>
               <div className="grid grid-cols-3 gap-3">
@@ -186,7 +271,7 @@ export default function QuoteBuilderPage() {
               </div>
             </div>
 
-            {/* Step 2a: Tray */}
+            {/* Step 2a: Tray Items */}
             {(cateringType === 'tray' || cateringType === 'hybrid') && (
               <div className="border border-gold/20 bg-royal-mid p-7">
                 <div className="flex items-center gap-3 mb-5"><span className="text-lg">🥘</span><span className="font-cinzel text-[9px] tracking-[0.35em] uppercase text-gold">Tray Items</span></div>
@@ -194,7 +279,7 @@ export default function QuoteBuilderPage() {
               </div>
             )}
 
-            {/* Step 2b: Per person */}
+            {/* Step 2b: Per Person Sessions */}
             {(cateringType === 'per_person' || cateringType === 'hybrid') && (
               <div className="flex flex-col gap-4">
                 {sessions.map((sess, si) => (
@@ -268,7 +353,7 @@ export default function QuoteBuilderPage() {
               </div>
             )}
 
-            {/* Step 3: Fees */}
+            {/* Step 3: Fees & Adjustments */}
             <div className="border border-gold/20 bg-royal-mid p-7">
               <div className="flex items-center gap-3 mb-5"><span className="text-lg">3️⃣</span><span className="font-cinzel text-[9px] tracking-[0.35em] uppercase text-gold">Fees & Adjustments</span></div>
               <div className="grid grid-cols-3 gap-5 mb-6">
@@ -310,6 +395,7 @@ export default function QuoteBuilderPage() {
               </div>
               <div className="flex flex-col gap-2.5 text-[13px]">
                 <div className="flex justify-between"><span className="text-cream/50">Food subtotal</span><span className="text-cream">{fmt(sub)}</span></div>
+                {/* FIX-007 (Jun 15 2026): hide Labour row when $0 — was showing $0.00 cluttering summary */}
                 {labour > 0 && <div className="flex justify-between"><span className="text-cream/50">Labour</span><span className="text-cream">{fmt(labour)}</span></div>}
                 {disc > 0 && <div className="flex justify-between text-green-400"><span>Discount</span><span>−{fmt(disc)}</span></div>}
                 {parseFloat(deliveryFee) > 0 && <div className="flex justify-between"><span className="text-cream/50">🚚 Delivery</span><span className="text-cream">{fmt(Math.round(parseFloat(deliveryFee)*100))}</span></div>}

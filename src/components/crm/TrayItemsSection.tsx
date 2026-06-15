@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Search } from 'lucide-react'
+import { Plus, Trash2, Search, MessageSquare } from 'lucide-react'
 
 type PricingType = 'tray' | 'per_person' | 'per_piece' | 'per_gallon' | 'per_portion'
 type TraySize = 'half' | 'medium' | 'full' | 'custom'
@@ -17,6 +17,9 @@ export interface TrayLineItem {
   piece_count?: number
   per_piece_price_cents?: number
   customer_comments: string
+  // FIX-008 (Jun 15 2026): added customer_feedback field to show what customer
+  // requested in their review (read-only, displayed below the line item)
+  customer_feedback?: string
   master_id?: string
 }
 
@@ -56,10 +59,8 @@ const CAT_LABELS: Record<string, string> = {
 export function calcLineTotal(item: TrayLineItem): number {
   if (item.pricing_type === 'tray') {
     if (item.tray_size === 'custom') {
-      // Multiple trays: quantity × full tray price
       return Math.round((item.tray_quantity || 1) * (item.unit_price_cents || 0))
     }
-    // Fixed tray sizes: unit_price_cents is the fixed price for that size
     return item.unit_price_cents || 0
   }
   if (item.pricing_type === 'per_person')  return (item.guest_count || 0) * (item.per_person_price_cents || 0)
@@ -69,7 +70,6 @@ export function calcLineTotal(item: TrayLineItem): number {
   return 0
 }
 
-// Fixed price input
 function PriceInput({ cents, onChange }: { cents: number; onChange: (c: number) => void }) {
   const [raw, setRaw] = useState(cents > 0 ? String(cents / 100) : '')
   useEffect(() => { setRaw(cents > 0 ? String(cents / 100) : '') }, [cents])
@@ -89,7 +89,6 @@ function PriceInput({ cents, onChange }: { cents: number; onChange: (c: number) 
   )
 }
 
-// Quantity input supporting decimals (1.5, 2 etc)
 function QtyInput({ value, onChange, unit }: { value: number; onChange: (v: number) => void; unit: string }) {
   const [raw, setRaw] = useState(value > 0 ? String(value) : '')
   useEffect(() => { setRaw(value > 0 ? String(value) : '') }, [value])
@@ -155,7 +154,6 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
     onChange(items.map(item => {
       if (item.id !== id) return item
       const updated = { ...item, ...updates }
-      // Auto-fill price when tray size changes
       if (updates.tray_size && item.master_id) {
         const master = masterMenu.find(m => m.id === item.master_id)
         if (master) {
@@ -180,7 +178,6 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
 
   return (
     <div>
-      {/* Column headers */}
       {items.length > 0 && (
         <div className="grid gap-3 mb-2 px-2" style={colStyle}>
           {['Dish', 'Pricing', 'Size / Count', 'Qty/Multiplier', 'Unit Price', 'Comments', ''].map(h => (
@@ -189,122 +186,132 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
         </div>
       )}
 
-      {/* Line items */}
       {items.map((item, idx) => {
         const lineTotal = calcLineTotal(item)
         const isEven = idx % 2 === 0
 
         return (
-          <div key={item.id}
-            className={`grid gap-3 mb-1 items-center px-2 py-3 border border-gold/10 rounded-sm transition-colors hover:border-gold/25 ${isEven ? 'bg-[#071020]' : 'bg-[#090f1e]'}`}
-            style={colStyle}>
+          <div key={item.id} className="mb-1">
+            <div
+              className={`grid gap-3 items-center px-2 py-3 border border-gold/10 rounded-sm transition-colors hover:border-gold/25 ${isEven ? 'bg-[#071020]' : 'bg-[#090f1e]'}`}
+              style={colStyle}>
 
-            {/* Dish name */}
-            <div>
-              <input value={item.dish_name}
-                onChange={e => updateItem(item.id, { dish_name: e.target.value })}
-                className="bg-transparent border-b border-gold/20 text-cream font-jost font-light text-[14px] outline-none placeholder:text-cream/20 focus:border-gold transition-colors w-full pb-1"
-                placeholder="Dish name..." />
-              <span className={`text-[9px] mt-0.5 block font-cinzel tracking-wider ${
-                item.pricing_type === 'tray'       ? 'text-blue-400' :
-                item.pricing_type === 'per_person' ? 'text-amber-400' :
-                item.pricing_type === 'per_piece'  ? 'text-teal-400' :
-                item.pricing_type === 'per_gallon' ? 'text-purple-400' : 'text-pink-400'
-              }`}>
-                {PRICING_TYPES.find(p => p.value === item.pricing_type)?.label}
-              </span>
-            </div>
+              {/* Dish name */}
+              <div>
+                <input value={item.dish_name}
+                  onChange={e => updateItem(item.id, { dish_name: e.target.value })}
+                  className="bg-transparent border-b border-gold/20 text-cream font-jost font-light text-[14px] outline-none placeholder:text-cream/20 focus:border-gold transition-colors w-full pb-1"
+                  placeholder="Dish name..." />
+                <span className={`text-[9px] mt-0.5 block font-cinzel tracking-wider ${
+                  item.pricing_type === 'tray'       ? 'text-blue-400' :
+                  item.pricing_type === 'per_person' ? 'text-amber-400' :
+                  item.pricing_type === 'per_piece'  ? 'text-teal-400' :
+                  item.pricing_type === 'per_gallon' ? 'text-purple-400' : 'text-pink-400'
+                }`}>
+                  {PRICING_TYPES.find(p => p.value === item.pricing_type)?.label}
+                </span>
+              </div>
 
-            {/* Pricing type */}
-            <select value={item.pricing_type}
-              onChange={e => updateItem(item.id, { pricing_type: e.target.value as PricingType })}
-              className="bg-[#0a1428] border border-gold/30 text-cream font-jost font-light text-[12px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm">
-              {PRICING_TYPES.map(p => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
-
-            {/* Size / Count */}
-            {item.pricing_type === 'tray' ? (
-              <select value={item.tray_size}
-                onChange={e => updateItem(item.id, { tray_size: e.target.value as TraySize })}
+              {/* Pricing type */}
+              <select value={item.pricing_type}
+                onChange={e => updateItem(item.id, { pricing_type: e.target.value as PricingType })}
                 className="bg-[#0a1428] border border-gold/30 text-cream font-jost font-light text-[12px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm">
-                {TRAY_SIZES.map(s => (
-                  <option key={s.value} value={s.value}>{s.label} ({s.note})</option>
+                {PRICING_TYPES.map(p => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
                 ))}
               </select>
-            ) : (
-              <QtyInput
-                value={item.pricing_type === 'per_person' ? (item.guest_count || 0) : (item.piece_count || 0)}
-                onChange={v => {
-                  if (item.pricing_type === 'per_person') updateItem(item.id, { guest_count: v })
-                  else updateItem(item.id, { piece_count: v })
-                }}
-                unit={PRICING_TYPES.find(p => p.value === item.pricing_type)?.unit || ''}
-              />
-            )}
 
-            {/* Qty / Multiplier */}
-            {item.pricing_type === 'tray' ? (
-              item.tray_size === 'custom' ? (
-                // Multiple trays: decimal quantity × full tray price
+              {/* Size / Count */}
+              {item.pricing_type === 'tray' ? (
+                <select value={item.tray_size}
+                  onChange={e => updateItem(item.id, { tray_size: e.target.value as TraySize })}
+                  className="bg-[#0a1428] border border-gold/30 text-cream font-jost font-light text-[12px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm">
+                  {TRAY_SIZES.map(s => (
+                    <option key={s.value} value={s.value}>{s.label} ({s.note})</option>
+                  ))}
+                </select>
+              ) : (
                 <QtyInput
-                  value={item.tray_quantity || 1}
-                  onChange={v => updateItem(item.id, { tray_quantity: v })}
-                  unit="× full"
+                  value={item.pricing_type === 'per_person' ? (item.guest_count || 0) : (item.piece_count || 0)}
+                  onChange={v => {
+                    if (item.pricing_type === 'per_person') updateItem(item.id, { guest_count: v })
+                    else updateItem(item.id, { piece_count: v })
+                  }}
+                  unit={PRICING_TYPES.find(p => p.value === item.pricing_type)?.unit || ''}
                 />
+              )}
+
+              {/* Qty / Multiplier */}
+              {item.pricing_type === 'tray' ? (
+                item.tray_size === 'custom' ? (
+                  <QtyInput
+                    value={item.tray_quantity || 1}
+                    onChange={v => updateItem(item.id, { tray_quantity: v })}
+                    unit="× full"
+                  />
+                ) : (
+                  <div className="text-cream/20 text-[11px] flex items-center justify-center">—</div>
+                )
               ) : (
                 <div className="text-cream/20 text-[11px] flex items-center justify-center">—</div>
-              )
-            ) : (
-              <div className="text-cream/20 text-[11px] flex items-center justify-center">—</div>
-            )}
+              )}
 
-            {/* Unit price */}
-            <PriceInput
-              cents={
-                item.pricing_type === 'per_person'  ? (item.per_person_price_cents || 0) :
-                item.pricing_type === 'per_piece'   ? (item.per_piece_price_cents  || 0) :
-                (item.unit_price_cents || 0)
-              }
-              onChange={c => {
-                if (item.pricing_type === 'per_person')     updateItem(item.id, { per_person_price_cents: c })
-                else if (item.pricing_type === 'per_piece') updateItem(item.id, { per_piece_price_cents: c })
-                else                                         updateItem(item.id, { unit_price_cents: c })
-              }}
-            />
+              {/* Unit price */}
+              <PriceInput
+                cents={
+                  item.pricing_type === 'per_person'  ? (item.per_person_price_cents || 0) :
+                  item.pricing_type === 'per_piece'   ? (item.per_piece_price_cents  || 0) :
+                  (item.unit_price_cents || 0)
+                }
+                onChange={c => {
+                  if (item.pricing_type === 'per_person')     updateItem(item.id, { per_person_price_cents: c })
+                  else if (item.pricing_type === 'per_piece') updateItem(item.id, { per_piece_price_cents: c })
+                  else                                         updateItem(item.id, { unit_price_cents: c })
+                }}
+              />
 
-            {/* Comments */}
-            <input value={item.customer_comments}
-              onChange={e => updateItem(item.id, { customer_comments: e.target.value })}
-              className="bg-transparent border-b border-gold/15 text-cream/70 font-jost font-light text-[12px] outline-none placeholder:text-cream/15 focus:border-gold/40 transition-colors w-full pb-1"
-              placeholder="e.g. mild spicy, no onion..." />
+              {/* Admin comments (internal kitchen notes) */}
+              <input value={item.customer_comments}
+                onChange={e => updateItem(item.id, { customer_comments: e.target.value })}
+                className="bg-transparent border-b border-gold/15 text-cream/70 font-jost font-light text-[12px] outline-none placeholder:text-cream/15 focus:border-gold/40 transition-colors w-full pb-1"
+                placeholder="e.g. mild spicy, no onion..." />
 
-            {/* Delete */}
-            <button onClick={() => onChange(items.filter(i => i.id !== item.id))}
-              className="text-red-400/30 hover:text-red-400 transition-colors flex items-center justify-center">
-              <Trash2 size={13} />
-            </button>
+              {/* Delete */}
+              <button onClick={() => onChange(items.filter(i => i.id !== item.id))}
+                className="text-red-400/30 hover:text-red-400 transition-colors flex items-center justify-center">
+                <Trash2 size={13} />
+              </button>
 
-            {/* Line total — full width row below */}
-            <div className="col-span-7 flex items-center justify-between mt-0.5 pt-1.5 border-t border-gold/10">
-              {/* Description of calculation */}
-              <span className="text-cream/25 text-[10px] font-cinzel tracking-wider">
-                {item.pricing_type === 'tray' && item.tray_size !== 'custom' &&
-                  `${TRAY_SIZES.find(s => s.value === item.tray_size)?.label}`}
-                {item.pricing_type === 'tray' && item.tray_size === 'custom' &&
-                  `${item.tray_quantity}× full tray × ${fmt(item.unit_price_cents)}`}
-                {item.pricing_type === 'per_person' &&
-                  `${item.guest_count} people × ${fmt(item.per_person_price_cents || 0)}/pp`}
-                {item.pricing_type === 'per_piece' &&
-                  `${item.piece_count} pcs × ${fmt(item.per_piece_price_cents || 0)}/pc`}
-                {item.pricing_type === 'per_gallon' &&
-                  `${item.piece_count} gal × ${fmt(item.unit_price_cents)}/gal`}
-                {item.pricing_type === 'per_portion' &&
-                  `${item.piece_count} portions × ${fmt(item.unit_price_cents)}/portion`}
-              </span>
-              <span className="text-gold font-italiana text-[18px]">{fmt(lineTotal)}</span>
+              {/* Line total */}
+              <div className="col-span-7 flex items-center justify-between mt-0.5 pt-1.5 border-t border-gold/10">
+                <span className="text-cream/25 text-[10px] font-cinzel tracking-wider">
+                  {item.pricing_type === 'tray' && item.tray_size !== 'custom' &&
+                    `${TRAY_SIZES.find(s => s.value === item.tray_size)?.label}`}
+                  {item.pricing_type === 'tray' && item.tray_size === 'custom' &&
+                    `${item.tray_quantity}× full tray × ${fmt(item.unit_price_cents)}`}
+                  {item.pricing_type === 'per_person' &&
+                    `${item.guest_count} people × ${fmt(item.per_person_price_cents || 0)}/pp`}
+                  {item.pricing_type === 'per_piece' &&
+                    `${item.piece_count} pcs × ${fmt(item.per_piece_price_cents || 0)}/pc`}
+                  {item.pricing_type === 'per_gallon' &&
+                    `${item.piece_count} gal × ${fmt(item.unit_price_cents)}/gal`}
+                  {item.pricing_type === 'per_portion' &&
+                    `${item.piece_count} portions × ${fmt(item.unit_price_cents)}/portion`}
+                </span>
+                <span className="text-gold font-italiana text-[18px]">{fmt(lineTotal)}</span>
+              </div>
             </div>
+
+            {/* FIX-008 (Jun 15 2026): show customer feedback below each line item when editing quote
+                after customer has submitted review. customer_feedback is loaded from the review round's
+                customer_changes array when the quote builder initialises from a review round.
+                Shown as gold banner so admin can see what to update for each dish. */}
+            {item.customer_feedback && (
+              <div className="flex items-start gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 border-t-0 rounded-b-sm">
+                <MessageSquare size={11} className="text-amber-400 mt-0.5 flex-shrink-0" />
+                <span className="text-amber-300/80 text-[11px] italic">{item.customer_feedback}</span>
+              </div>
+            )}
           </div>
         )
       })}
@@ -330,7 +337,7 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
         </button>
       </div>
 
-      {/* Tray size terminology note */}
+      {/* Tray size reference */}
       <div className="mt-4 border border-gold/10 bg-royal/30 px-4 py-3 rounded-sm">
         <p className="font-cinzel text-[7px] tracking-[0.2em] uppercase text-gold/50 mb-1.5">Tray Size Reference</p>
         <p className="text-cream/30 text-[11px] leading-relaxed">

@@ -46,7 +46,11 @@ export default function NewEnquiryPage() {
     )
   }
 
-  async function handleSave(andNext?: 'tasting') {
+  // FIX-009 (Jun 15 2026): changed andNext from 'tasting' to 'quote' | 'tasting'
+  // - 'quote'   → save then redirect to /admin/enquiries/[id]/quote
+  // - 'tasting' → save then redirect to /admin/enquiries/[id]/tasting (unchanged)
+  // - undefined → save then redirect to /admin/enquiries list (unchanged)
+  async function handleSave(andNext?: 'quote' | 'tasting') {
     if (!form.customer_name || !form.customer_phone || !form.event_date) {
       setError('Please fill in customer name, phone and event date.')
       return
@@ -56,7 +60,6 @@ export default function NewEnquiryPage() {
       const payload = {
         ...form,
         guest_count: parseInt(form.guest_count as string) || 50,
-        // Fix budget — ensure positive numbers only
         budget_min: form.budget_min ? Math.abs(parseInt(form.budget_min as string)) : null,
         budget_max: form.budget_max ? Math.abs(parseInt(form.budget_max as string)) : null,
       }
@@ -67,7 +70,9 @@ export default function NewEnquiryPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Save failed')
-      if (andNext === 'tasting') router.push(`/admin/enquiries/${data.id}/tasting`)
+      // FIX-009: route to quote builder instead of tasting
+      if (andNext === 'quote')   router.push(`/admin/enquiries/${data.id}/quote`)
+      else if (andNext === 'tasting') router.push(`/admin/enquiries/${data.id}/tasting`)
       else router.push('/admin/enquiries')
     } catch (e: any) { setError(e.message) }
     setSaving(false)
@@ -84,9 +89,10 @@ export default function NewEnquiryPage() {
           <h1 className="font-italiana text-[32px] text-cream leading-none">Capture Customer Call</h1>
         </div>
         <div className="ml-auto flex gap-3">
-          <button onClick={() => handleSave('tasting')} disabled={saving}
+          {/* FIX-009: replaced "Save + Schedule Tasting" with "Save + Quote" in header */}
+          <button onClick={() => handleSave('quote')} disabled={saving}
             className="font-cinzel text-[8px] tracking-[0.22em] uppercase border border-gold/30 text-gold px-5 py-3 hover:bg-gold/10 transition-colors disabled:opacity-40">
-            Save + Schedule Tasting
+            Save + Quote
           </button>
           <button onClick={() => handleSave()} disabled={saving}
             className="font-cinzel text-[8px] tracking-[0.22em] uppercase bg-gold text-ink px-6 py-3 hover:bg-gold-hi transition-colors disabled:opacity-40 flex items-center gap-2">
@@ -215,7 +221,9 @@ export default function NewEnquiryPage() {
               <button onClick={() => handleSave()} disabled={saving} className="btn-royal w-full text-center flex items-center justify-center gap-2">
                 <Save size={14} />{saving ? 'Saving...' : 'Save Enquiry'}
               </button>
-              <button onClick={() => handleSave('tasting')} disabled={saving} className="btn-ghost w-full text-center">Save + Schedule Tasting</button>
+              {/* FIX-009: bottom buttons — Save+Quote (primary action) + Save+Tasting (secondary) */}
+              <button onClick={() => handleSave('quote')} disabled={saving} className="btn-ghost w-full text-center">Save + Quote</button>
+              <button onClick={() => handleSave('tasting')} disabled={saving} className="btn-ghost w-full text-center opacity-50 text-[11px]">Save + Schedule Tasting</button>
               <Link href="/admin/enquiries" className="block text-center font-cinzel text-[8px] tracking-[0.2em] uppercase text-cream/30 hover:text-cream/60 transition-colors mt-1">Cancel</Link>
             </div>
           </div>
