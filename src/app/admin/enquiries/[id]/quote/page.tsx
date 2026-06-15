@@ -56,8 +56,8 @@ export default function QuoteBuilderPage() {
         setEnquiry(d)
         setSessions(prev => prev.map((s, i) => i === 0 ? { ...s, guest_count: gc } : s))
         // FIX-025 (Jun 15 2026): removed auto per_person switch — always default to tray
-        // Admin can manually switch if needed
-        else setCateringType('tray')
+        // Admin can manually switch catering type if needed
+        setCateringType('tray')
 
         const qRes = await fetch(`/api/quotes?enquiry_id=${id}`)
         const qData = await qRes.json()
