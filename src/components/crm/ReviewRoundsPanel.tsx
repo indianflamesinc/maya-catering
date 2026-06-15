@@ -40,6 +40,24 @@ function fmt(cents: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 }
 
+// FIX-018 (Jun 15 2026): WAS column was showing wrong qty for all item types
+// because computeDiff used orig.tray_quantity for ALL pricing types.
+// Fix: getDisplayQty reads correct field per pricing_type, matching submit/route.ts fix.
+function getDisplayQty(item: any): number {
+  if (!item) return 0
+  if (item.pricing_type === 'per_person') return item.guest_count || item.tray_quantity || 0
+  if (
+    item.pricing_type === 'per_piece' ||
+    item.pricing_type === 'per_gallon' ||
+    item.pricing_type === 'per_portion'
+  ) {
+    return item.piece_count || item.tray_quantity || 0
+  }
+  // tray: custom = tray_quantity, fixed sizes = 1
+  if (item.tray_size === 'custom') return item.tray_quantity || 1
+  return 1
+}
+
 export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate }: Props) {
   const [rounds, setRounds] = useState<Round[]>([])
   const [loading, setLoading] = useState(true)
@@ -167,7 +185,6 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate }: Props) 
                         </thead>
                         <tbody>
                           {diff.map((d, i) => (
-                            <>
                             <tr key={i} className="border-b border-gold/5">
                               <td className="py-2 pr-3 text-cream/80 font-medium">
                                 {d.dish}
@@ -175,7 +192,12 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate }: Props) 
                                   <div className="text-[10px] text-yellow-300/60 mt-0.5 italic">{d.comments}</div>
                                 )}
                               </td>
-                              <td className="py-2 pr-3 text-cream/30 text-right">{d.original_qty !== '—' ? <span className="line-through">{d.original_qty}</span> : '—'}</td>
+                              {/* FIX-018: WAS now shows correct original qty */}
+                              <td className="py-2 pr-3 text-cream/30 text-right">
+                                {d.original_qty !== null
+                                  ? <span className="line-through">{d.original_qty}</span>
+                                  : '—'}
+                              </td>
                               <td className="py-2 pr-3 text-green-400 font-bold text-right">{d.updated_qty}</td>
                               <td className="py-2 pr-3 text-cream/40 text-right">
                                 {d.unit_price > 0 ? fmt(d.unit_price) : '—'}
@@ -184,7 +206,6 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate }: Props) 
                                 {d.unit_price > 0 ? fmt(d.unit_price * parseFloat(String(d.updated_qty))) : '—'}
                               </td>
                             </tr>
-                            </>
                           ))}
                         </tbody>
                       </table>
@@ -193,13 +214,15 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate }: Props) 
                     <p className="text-[12px] text-cream/40 italic">No quantity changes — check comments below.</p>
                   )}
 
-                  {/* Comments */}
+                  {/* Overall comments */}
                   {round.customer_comments && (
                     <div className="mt-3 bg-yellow-500/10 border border-yellow-500/20 rounded p-3 text-[12px] text-yellow-200/80">
                       <span className="font-cinzel text-[7px] tracking-[0.15em] uppercase text-yellow-400/60 block mb-1">Customer Comments</span>
                       {round.customer_comments}
                     </div>
                   )}
+
+                  {/* Per-dish comments */}
                   {changes.filter((c: any) => c.customer_comments).length > 0 && (
                     <div className="mt-2 space-y-1">
                       {changes.filter((c: any) => c.customer_comments).map((c: any, i: number) => (
@@ -273,19 +296,20 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate }: Props) 
   )
 }
 
+// FIX-018 (Jun 15 2026): use getDisplayQty for correct WAS qty per pricing_type
 function computeDiff(snapshot: any[], changes: any[]) {
   const diffs: any[] = []
   for (const change of changes) {
     const orig = snapshot.find(
       (o: any) => o.id === change.id || o.dish_name?.toLowerCase() === change.dish_name?.toLowerCase()
     )
-    const origQty   = orig ? parseFloat(orig.tray_quantity) : null
+    // FIX-018: getDisplayQty reads correct field per type instead of always tray_quantity
+    const origQty   = orig ? getDisplayQty(orig) : null
     const newQty    = parseFloat(change.tray_quantity)
     const unitPrice = change.unit_price_cents ?? orig?.unit_price_cents ?? 0
-    // Always show the change — use original qty from snapshot if available
     diffs.push({
       dish: change.dish_name,
-      original_qty: origQty ?? '—',
+      original_qty: origQty,
       updated_qty: newQty,
       unit_price: unitPrice,
       comments: change.customer_comments || '',
@@ -295,5 +319,8 @@ function computeDiff(snapshot: any[], changes: any[]) {
 }
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true
+  })
 }

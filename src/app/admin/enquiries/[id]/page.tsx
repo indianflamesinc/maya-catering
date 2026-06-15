@@ -19,7 +19,6 @@ function InfoRow({ label, value }: { label: string; value?: string | number | nu
   )
 }
 
-// Status pipeline with what action to take at each stage
 const PIPELINE = [
   { status: 'new',          label: 'New',          action: 'Contact Customer',   icon: '📞' },
   { status: 'contacted',    label: 'Contacted',    action: 'Build Quote',        icon: '📄' },
@@ -54,9 +53,7 @@ export default function EnquiryDetailPage() {
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
 
-  useEffect(() => {
-    load()
-  }, [id])
+  useEffect(() => { load() }, [id])
 
   async function load() {
     const [eRes, qRes, rRes] = await Promise.all([
@@ -130,7 +127,6 @@ export default function EnquiryDetailPage() {
           {PIPELINE.map((step, i) => {
             const isDone = i < statusIdx
             const isCurrent = i === statusIdx
-            const isFuture = i > statusIdx
             return (
               <div key={step.status} className="flex items-center flex-shrink-0">
                 <div className={`flex flex-col items-center px-3 py-2 min-w-[80px] text-center ${isCurrent ? 'opacity-100' : isDone ? 'opacity-60' : 'opacity-25'}`}>
@@ -173,6 +169,13 @@ export default function EnquiryDetailPage() {
             <ClipboardList size={12} /> Kitchen Prep List
           </Link>
         )}
+        {/* FIX-016: Mark Deposit Received button when status=approved (waiting for Zelle/Check) */}
+        {enquiry.status === 'approved' && (
+          <button onClick={advanceStatus} disabled={updating}
+            className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-green-500/40 text-green-400 px-4 py-2 hover:bg-green-500/10 transition-colors flex items-center gap-2 ml-auto">
+            💰 Mark Deposit Received
+          </button>
+        )}
         <button onClick={markCancelled} disabled={updating || enquiry.status === 'cancelled'}
           className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-red-500/20 text-red-400/60 px-4 py-2 hover:bg-red-500/10 transition-colors ml-auto disabled:opacity-20">
           Cancel Enquiry
@@ -181,11 +184,9 @@ export default function EnquiryDetailPage() {
 
       <div className="max-w-[1200px] mx-auto px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
-
-          {/* LEFT */}
           <div className="flex flex-col gap-6">
 
-            {/* Quote summary - if exists */}
+            {/* Quote summary */}
             {latestQuote && (
               <div className="border border-gold/30 bg-gold/5 p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -196,10 +197,13 @@ export default function EnquiryDetailPage() {
                     'border-gold/20 text-gold/60'
                   }`}>{latestQuote.status}</span>
                 </div>
+
+                {/* FIX-007 (Jun 15 2026): hide Labour when $0 — was showing $0.00 cluttering the summary */}
                 <div className="grid grid-cols-4 gap-4 mb-4">
                   {[
                     { l: 'Food Subtotal', v: fmt(latestQuote.subtotal_cents || 0) },
-                    { l: 'Labour', v: fmt(latestQuote.labour_cents || 0) },
+                    // FIX-007: only show Labour if > 0
+                    ...(latestQuote.labour_cents > 0 ? [{ l: 'Labour', v: fmt(latestQuote.labour_cents) }] : []),
                     { l: 'Tax (7%)', v: fmt(latestQuote.tax_cents || 0) },
                     { l: 'Grand Total', v: fmt(latestQuote.total_cents || 0), gold: true },
                   ].map(item => (
@@ -209,6 +213,7 @@ export default function EnquiryDetailPage() {
                     </div>
                   ))}
                 </div>
+
                 {latestQuote.total_cents > 0 && (
                   <div className="flex gap-6 text-[12px] text-cream/50 border-t border-gold/10 pt-3">
                     <span>20% Deposit: <strong className="text-cream/70">{fmt(Math.round(latestQuote.total_cents * 0.2))}</strong></span>
@@ -216,12 +221,12 @@ export default function EnquiryDetailPage() {
                     <span>Catering type: <strong className="text-cream/70 capitalize">{latestQuote.catering_type?.replace('_',' ')}</strong></span>
                   </div>
                 )}
+
                 <div className="flex items-center gap-4 mt-4 flex-wrap">
                   <Link href={`/admin/enquiries/${id}/quote`}
                     className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-gold/30 text-gold px-4 py-2 hover:bg-gold/10 transition-colors">
                     Open Quote Builder →
                   </Link>
-                  {/* ── SEND FOR REVIEW BUTTON ── */}
                   {enquiry.customer_email && (
                     <SendReviewButton
                       enquiryId={enquiry.id}
@@ -231,17 +236,11 @@ export default function EnquiryDetailPage() {
                     />
                   )}
                 </div>
-
-                {/* ── REVIEW ROUNDS PANEL ── */}
-                <ReviewRoundsPanel
-                  enquiryId={enquiry.id}
-                  quoteId={latestQuote.id}
-                  onRoundUpdate={load}
-                />
+                <ReviewRoundsPanel enquiryId={enquiry.id} quoteId={latestQuote.id} onRoundUpdate={load} />
               </div>
             )}
 
-            {/* Sessions from quote */}
+            {/* Sessions */}
             {latestQuote?.quote_sessions?.length > 0 && (
               <div className="border border-gold/20 bg-royal-mid p-6">
                 <span className="font-cinzel text-[9px] tracking-[0.35em] uppercase text-gold block mb-5">Event Sessions</span>
@@ -266,8 +265,7 @@ export default function EnquiryDetailPage() {
                           </div>
                           {(cat.quote_session_dishes || []).map((dish: any) => (
                             <div key={dish.id} className="text-[12px] text-cream/60 pl-3 py-0.5 flex items-center gap-2">
-                              <span className="text-gold/20">•</span>
-                              {dish.dish_name}
+                              <span className="text-gold/20">•</span>{dish.dish_name}
                               {dish.is_live_station && <span className="text-amber-400/70 text-[9px] font-cinzel tracking-wider uppercase">Live</span>}
                               {dish.is_passing && <span className="text-blue-400/70 text-[9px] font-cinzel tracking-wider uppercase">Passing</span>}
                             </div>
@@ -280,7 +278,7 @@ export default function EnquiryDetailPage() {
               </div>
             )}
 
-            {/* Tray items from quote */}
+            {/* Tray items */}
             {latestQuote?.quote_tray_items?.length > 0 && (
               <div className="border border-gold/20 bg-royal-mid p-6">
                 <span className="font-cinzel text-[9px] tracking-[0.35em] uppercase text-gold block mb-4">Tray Order Items</span>
@@ -292,8 +290,20 @@ export default function EnquiryDetailPage() {
                 {latestQuote.quote_tray_items.map((item: any) => (
                   <div key={item.id} className="grid grid-cols-[2fr_100px_60px_80px_100px] gap-2 px-2 py-2 border-t border-gold/10 text-[13px]">
                     <span className="text-cream">{item.dish_name}</span>
-                    <span className="text-cream/50 capitalize">{item.pricing_type === 'per_person' ? 'Per Person' : item.pricing_type === 'per_piece' ? 'Per Piece' : item.pricing_type === 'per_gallon' ? 'Per Gallon' : item.pricing_type === 'per_portion' ? 'Per Portion' : item.tray_size === 'half' ? 'Small' : item.tray_size === 'medium' ? 'Medium' : 'Full Tray'}</span>
-                    <span className="text-cream/50">{item.pricing_type === 'per_person' ? item.guest_count : item.pricing_type === 'per_piece' || item.pricing_type === 'per_gallon' || item.pricing_type === 'per_portion' ? item.piece_count : item.tray_size === 'custom' ? item.tray_quantity : 1}</span>
+                    <span className="text-cream/50 capitalize">
+                      {item.pricing_type === 'per_person' ? 'Per Person' :
+                       item.pricing_type === 'per_piece'  ? 'Per Piece'  :
+                       item.pricing_type === 'per_gallon' ? 'Per Gallon' :
+                       item.pricing_type === 'per_portion'? 'Per Portion':
+                       item.tray_size === 'half'   ? 'Small' :
+                       item.tray_size === 'medium' ? 'Medium' :
+                       item.tray_size === 'custom' ? 'Multiple' : 'Full Tray'}
+                    </span>
+                    <span className="text-cream/50">
+                      {item.pricing_type === 'per_person' ? item.guest_count :
+                       item.pricing_type === 'per_piece' || item.pricing_type === 'per_gallon' || item.pricing_type === 'per_portion' ? item.piece_count :
+                       item.tray_size === 'custom' ? item.tray_quantity : 1}
+                    </span>
                     <span className="text-cream/50">{fmt(item.unit_price_cents)}</span>
                     <span className="text-gold-hi">{fmt(item.total_price_cents)}</span>
                   </div>
@@ -301,7 +311,6 @@ export default function EnquiryDetailPage() {
               </div>
             )}
 
-            {/* No quote yet */}
             {!latestQuote && (
               <div className="border border-dashed border-gold/20 p-8 text-center">
                 <p className="font-italiana text-[24px] text-cream/30 mb-2">No quote yet</p>
@@ -328,7 +337,6 @@ export default function EnquiryDetailPage() {
                 <InfoRow label="Date" value={new Date(enquiry.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} />
                 <InfoRow label="Time" value={enquiry.event_time} />
                 <InfoRow label="Guests" value={`${enquiry.guest_count} guests`} />
-                <InfoRow label="Type" value={enquiry.delivery_type === 'venue' ? 'At Venue' : enquiry.delivery_type === 'delivery' ? 'Delivery' : 'Pickup'} />
                 {enquiry.budget_min && <InfoRow label="Budget" value={`$${enquiry.budget_min?.toLocaleString()}${enquiry.budget_max ? ` – $${enquiry.budget_max.toLocaleString()}` : '+'}`} />}
               </div>
             </div>
@@ -362,14 +370,12 @@ export default function EnquiryDetailPage() {
 
           {/* RIGHT */}
           <div className="flex flex-col gap-4">
-            {/* Days countdown */}
             <div className={`border p-5 text-center ${daysUntil <= 7 ? 'border-red-500/40 bg-red-500/5' : daysUntil <= 30 ? 'border-amber-500/40 bg-amber-500/5' : 'border-gold/20 bg-royal-mid'}`}>
               <span className="font-italiana text-[60px] text-cream block leading-none">{daysUntil > 0 ? daysUntil : 0}</span>
               <span className="font-cinzel text-[8px] tracking-[0.3em] uppercase text-gold">days until event</span>
               {daysUntil <= 7 && daysUntil > 0 && <p className="text-red-400 text-[11px] mt-1">⚡ This week!</p>}
             </div>
 
-            {/* What to do next */}
             {statusIdx < PIPELINE.length - 1 && (
               <div className="border border-gold/20 bg-royal-mid p-5">
                 <span className="font-cinzel text-[8px] tracking-[0.3em] uppercase text-gold block mb-3">Next Step</span>
@@ -379,7 +385,7 @@ export default function EnquiryDetailPage() {
                   {enquiry.status === 'tasting' && '🍽️ After the food tasting, update the menu based on feedback and build the final quote.'}
                   {enquiry.status === 'quoted' && '⏳ Waiting for customer to review their online quote. Follow up if no response in 3 days.'}
                   {enquiry.status === 'negotiating' && '🤝 Customer has requested changes. Update the quote and save as a new version.'}
-                  {enquiry.status === 'approved' && '💰 Collect 20% deposit. Send contract for signing. Once deposit received, mark Deposit Paid.'}
+                  {enquiry.status === 'approved' && '💰 Awaiting deposit. Customer has chosen their payment method. Click "Mark Deposit Received" once payment arrives.'}
                   {enquiry.status === 'deposit_paid' && '🎉 Deposit received. Send signed contract. One week before — reconfirm final menu and guest count.'}
                   {enquiry.status === 'confirmed' && '📋 Generate the kitchen prep list. Confirm all staff and logistics one week before the event.'}
                   {enquiry.status === 'completed' && '⭐ Send a review request SMS to the customer with your Google review link.'}
@@ -387,7 +393,6 @@ export default function EnquiryDetailPage() {
               </div>
             )}
 
-            {/* Internal notes */}
             <div className="border border-gold/20 bg-royal-mid p-5">
               <span className="font-cinzel text-[8px] tracking-[0.3em] uppercase text-gold block mb-3">Internal Notes</span>
               {enquiry.internal_notes
@@ -396,7 +401,6 @@ export default function EnquiryDetailPage() {
               }
             </div>
 
-            {/* Assignment */}
             <div className="border border-gold/20 bg-royal-mid p-5">
               <span className="font-cinzel text-[8px] tracking-[0.3em] uppercase text-gold block mb-3">Assignment</span>
               <InfoRow label="Assigned to" value={enquiry.assigned_to} />
@@ -405,7 +409,6 @@ export default function EnquiryDetailPage() {
               )}
             </div>
 
-            {/* Record info */}
             <div className="border border-gold/20 bg-royal-mid p-5">
               <span className="font-cinzel text-[8px] tracking-[0.3em] uppercase text-gold block mb-3">Record Info</span>
               <InfoRow label="Created" value={new Date(enquiry.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })} />
