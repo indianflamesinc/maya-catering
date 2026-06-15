@@ -10,15 +10,12 @@ const fmt = (cents: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 
 // ── FIX-001 (Jun 15 2026): correct qty per pricing_type ─────────────────
-// Returns the display quantity for a tray item based on its pricing type.
-// Before this fix, all items used tray_quantity (always 1 for per_piece/per_person).
 function getDisplayQty(item: any): number {
   if (item.pricing_type === 'per_piece') return item.piece_count ?? 1
   if (item.pricing_type === 'per_person') return item.guest_count ?? 1
   return item.tray_quantity ?? 1
 }
 
-// Returns a human-readable tray size / pricing label for display.
 function getTrayLabel(item: any): string {
   if (item.pricing_type === 'per_piece') return 'Per Piece'
   if (item.pricing_type === 'per_person') return 'Per Person'
@@ -85,8 +82,6 @@ export default function QuoteReviewPage() {
     }
   }
 
-  // ── Loading ────────────────────────────────────────────
-
   if (loading) return (
     <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="text-center">
@@ -95,8 +90,6 @@ export default function QuoteReviewPage() {
       </div>
     </div>
   )
-
-  // ── Error ──────────────────────────────────────────────
 
   if (error) return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
@@ -113,8 +106,6 @@ export default function QuoteReviewPage() {
       </div>
     </div>
   )
-
-  // ── Submitted ──────────────────────────────────────────
 
   if (submitted) return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
@@ -217,8 +208,6 @@ export default function QuoteReviewPage() {
             <div style={{ background: '#05091A', padding: '12px 20px', fontSize: 10, letterSpacing: 2, color: '#C9A84C', fontWeight: 'bold', textTransform: 'uppercase' }}>
               Your Menu Items
             </div>
-
-            {/* Header row */}
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 80px 110px 110px', gap: 8, padding: '10px 20px', background: '#f6edd8', fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>
               <div>Dish</div>
               <div>Tray Size</div>
@@ -226,20 +215,14 @@ export default function QuoteReviewPage() {
               <div style={{ textAlign: 'right' }}>Unit Price</div>
               <div style={{ textAlign: 'right' }}>Total</div>
             </div>
-
             {changes.map((item, i) => (
               <div key={item.id} style={{ borderTop: '1px solid #f0e8d8', padding: '14px 20px', background: i % 2 === 0 ? '#fff' : '#fdfaf6' }}>
-                {/* Main row */}
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 80px 110px 110px', gap: 8, alignItems: 'center', marginBottom: 8 }}>
                   <div>
                     <div style={{ fontWeight: 'bold', color: '#1a1a1a', fontSize: 14 }}>{item.dish_name}</div>
                     <div style={{ color: '#999', fontSize: 11, marginTop: 2 }}>{item.category}</div>
                   </div>
-
-                  {/* FIX-001: human-readable tray/pricing label */}
                   <div style={{ color: '#555', fontSize: 13 }}>{getTrayLabel(item)}</div>
-
-                  {/* FIX-001: editable qty uses correct field per pricing_type */}
                   <div style={{ textAlign: 'center' }}>
                     <input
                       type="number"
@@ -254,16 +237,11 @@ export default function QuoteReviewPage() {
                       }}
                     />
                   </div>
-
                   <div style={{ textAlign: 'right', color: '#555', fontSize: 13 }}>{fmt(item.unit_price_cents)}</div>
-
-                  {/* FIX-001: total uses displayQty instead of tray_quantity */}
                   <div style={{ textAlign: 'right', color: '#C9A84C', fontWeight: 'bold', fontSize: 14 }}>
                     {fmt(item.unit_price_cents * item.displayQty)}
                   </div>
                 </div>
-
-                {/* Comments */}
                 <input
                   type="text"
                   placeholder="Any comments or special requests for this dish…"
@@ -280,7 +258,7 @@ export default function QuoteReviewPage() {
           </div>
         )}
 
-        {/* Per person sessions - read only view */}
+        {/* Per person sessions */}
         {isPerPerson && snapshot?.sessions?.length > 0 && (
           <div style={{ background: '#fff', border: '1px solid #e8dfc8', borderRadius: 8, marginBottom: 24, overflow: 'hidden' }}>
             <div style={{ background: '#05091A', padding: '12px 20px', fontSize: 10, letterSpacing: 2, color: '#C9A84C', fontWeight: 'bold', textTransform: 'uppercase' }}>
@@ -308,13 +286,18 @@ export default function QuoteReviewPage() {
           </div>
         )}
 
-        {/* Totals */}
+        {/* Pricing Summary */}
         <div style={{ background: '#fff', border: '1px solid #e8dfc8', borderRadius: 8, padding: '20px 24px', marginBottom: 24 }}>
           <div style={{ fontSize: 10, letterSpacing: 2, color: '#C9A84C', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: 16 }}>
             Pricing Summary
           </div>
           {[
             { label: 'Subtotal', value: snapshot?.subtotal_cents },
+            // FIX-002 (Jun 15 2026): show delivery/setup/service fees from snapshot
+            snapshot?.delivery_fee_cents > 0 ? { label: 'Delivery Fee', value: snapshot.delivery_fee_cents } : null,
+            snapshot?.setup_fee_cents > 0 ? { label: 'Setup Fee', value: snapshot.setup_fee_cents } : null,
+            snapshot?.service_fee_cents > 0 ? { label: 'Service Fee', value: snapshot.service_fee_cents } : null,
+            // END FIX-002
             snapshot?.discount_cents > 0 ? { label: 'Discount', value: -snapshot.discount_cents } : null,
             { label: 'Tax (7% MA)', value: snapshot?.tax_cents },
           ].filter(Boolean).map((row: any) => (
@@ -372,7 +355,6 @@ export default function QuoteReviewPage() {
           Questions? Email <a href="mailto:indianflamesinc@gmail.com" style={{ color: '#C9A84C' }}>indianflamesinc@gmail.com</a>
         </p>
 
-        {/* Footer */}
         <div style={{ textAlign: 'center', marginTop: 40, paddingTop: 24, borderTop: '1px solid #e8dfc8', color: '#bbb', fontSize: 11 }}>
           Maya Indian Catering · 33 Tuttle St, Wakefield MA 01880 · mayacater.com
         </div>

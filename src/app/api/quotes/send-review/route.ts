@@ -35,7 +35,6 @@ function getQty(item: any): string {
   if (item.pricing_type === 'per_piece') return `${item.piece_count || item.tray_quantity || 1} pcs`
   if (item.pricing_type === 'per_gallon') return `${item.piece_count || item.tray_quantity || 1} gal`
   if (item.pricing_type === 'per_portion') return `${item.piece_count || item.tray_quantity || 1} portions`
-  // tray
   if (item.tray_size === 'custom') return `${item.tray_quantity || 1}×`
   return '1'
 }
@@ -83,7 +82,7 @@ export async function POST(req: NextRequest) {
       .eq('enquiry_id', enquiry_id)
       .eq('status', 'pending')
 
-    // 7. Build snapshot — save ALL fields needed for diff later
+    // 7. Build snapshot
     const snapshot = {
       catering_type: quote.catering_type,
       tray_items: (trayItems ?? []).map(item => ({
@@ -114,6 +113,11 @@ export async function POST(req: NextRequest) {
         })),
       })),
       subtotal_cents: quote.subtotal_cents || 0,
+      // FIX-002 (Jun 15 2026): save fee fields so review page and email can show them
+      delivery_fee_cents: quote.delivery_fee_cents || 0,
+      setup_fee_cents: quote.setup_fee_cents || 0,
+      service_fee_cents: quote.service_fee_cents || 0,
+      // END FIX-002
       discount_cents: quote.discount_cents || 0,
       tax_cents: quote.tax_cents || 0,
       total_cents: quote.total_cents || 0,
@@ -252,6 +256,20 @@ async function sendReviewEmail({
     ? `Your Maya Catering Quote — ${eventType} on ${eventDate}`
     : `Updated Quote for Review (Round ${roundNumber}) — ${eventType} | Maya Catering`
 
+  // FIX-002: build fee rows for email (only shown if fee > 0)
+  const feeRowsHtml = [
+    snapshot.delivery_fee_cents > 0
+      ? `<tr><td style="padding:6px 0;color:#666">Delivery Fee</td><td style="text-align:right;color:#333">${fmt2(snapshot.delivery_fee_cents)}</td></tr>`
+      : '',
+    snapshot.setup_fee_cents > 0
+      ? `<tr><td style="padding:6px 0;color:#666">Setup Fee</td><td style="text-align:right;color:#333">${fmt2(snapshot.setup_fee_cents)}</td></tr>`
+      : '',
+    snapshot.service_fee_cents > 0
+      ? `<tr><td style="padding:6px 0;color:#666">Service Fee</td><td style="text-align:right;color:#333">${fmt2(snapshot.service_fee_cents)}</td></tr>`
+      : '',
+  ].join('')
+  // END FIX-002
+
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f5f0e8;font-family:Georgia,serif">
@@ -281,6 +299,7 @@ async function sendReviewEmail({
     </table>
     <table style="width:100%;font-size:13px;margin-bottom:28px">
       <tr><td style="padding:6px 0;color:#666">Subtotal</td><td style="text-align:right;color:#333">${fmt2(snapshot.subtotal_cents)}</td></tr>
+      ${feeRowsHtml}
       ${snapshot.discount_cents > 0 ? `<tr><td style="padding:6px 0;color:#666">Discount</td><td style="text-align:right;color:#e55">-${fmt2(snapshot.discount_cents)}</td></tr>` : ''}
       <tr><td style="padding:6px 0;color:#666">Tax (7% MA)</td><td style="text-align:right;color:#333">${fmt2(snapshot.tax_cents)}</td></tr>
       <tr style="border-top:2px solid #C9A84C">
