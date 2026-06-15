@@ -130,7 +130,10 @@ export async function POST(req: NextRequest) {
             sort_order: i,
           }
         }))
-      if (trayError) console.error('Tray items error:', trayError)
+      if (trayError) {
+        console.error('Tray items error:', trayError)
+        return NextResponse.json({ error: 'Tray items save failed: ' + trayError.message, trayError }, { status: 500 })
+      }
     }
 
     // Save sessions
