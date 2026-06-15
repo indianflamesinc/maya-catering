@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
     await sendReviewEmail({
       to: enquiry.customer_email,
       customerName: enquiry.customer_name,
-      eventType: enquiry.event_type,
+      eventType: (enquiry.event_type || '').split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
       eventDate,
       venue: enquiry.venue_name || enquiry.venue_address || 'TBD',
       guestCount: enquiry.guest_count,

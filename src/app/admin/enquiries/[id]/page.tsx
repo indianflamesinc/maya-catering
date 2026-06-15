@@ -378,7 +378,7 @@ export default function EnquiryDetailPage() {
                   {enquiry.status === 'new' && '📞 Call the customer back to discuss their event requirements and confirm interest.'}
                   {enquiry.status === 'contacted' && '📄 Build a quote using the Quote Builder. Choose per-person or tray pricing based on the event type.'}
                   {enquiry.status === 'tasting' && '🍽️ After the food tasting, update the menu based on feedback and build the final quote.'}
-                  {enquiry.status === 'quoted' && '⏳ Waiting for customer to review the Google Sheet quote. Follow up if no response in 3 days.'}
+                  {enquiry.status === 'quoted' && '⏳ Waiting for customer to review their online quote. Follow up if no response in 3 days.'}
                   {enquiry.status === 'negotiating' && '🤝 Customer has requested changes. Update the quote and save as a new version.'}
                   {enquiry.status === 'approved' && '💰 Collect 20% deposit. Send contract for signing. Once deposit received, mark Deposit Paid.'}
                   {enquiry.status === 'deposit_paid' && '🎉 Deposit received. Send signed contract. One week before — reconfirm final menu and guest count.'}
