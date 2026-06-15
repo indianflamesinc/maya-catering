@@ -292,7 +292,7 @@ export default function EnquiryDetailPage() {
                 {latestQuote.quote_tray_items.map((item: any) => (
                   <div key={item.id} className="grid grid-cols-[2fr_100px_60px_80px_100px] gap-2 px-2 py-2 border-t border-gold/10 text-[13px]">
                     <span className="text-cream">{item.dish_name}</span>
-                    <span className="text-cream/50 capitalize">{item.tray_size === 'half' ? 'Small' : item.tray_size === 'medium' ? 'Medium' : 'Full Tray'}</span>
+                    <span className="text-cream/50 capitalize">{item.pricing_type === 'per_person' ? 'Per Person' : item.pricing_type === 'per_piece' ? 'Per Piece' : item.pricing_type === 'per_gallon' ? 'Per Gallon' : item.pricing_type === 'per_portion' ? 'Per Portion' : item.tray_size === 'half' ? 'Small' : item.tray_size === 'medium' ? 'Medium' : 'Full Tray'}</span>
                     <span className="text-cream/50">{item.quantity}</span>
                     <span className="text-cream/50">{fmt(item.unit_price_cents)}</span>
                     <span className="text-gold-hi">{fmt(item.total_price_cents)}</span>
