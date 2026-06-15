@@ -1,7 +1,4 @@
 // src/app/api/quotes/send-review/route.ts
-// POST /api/quotes/send-review
-// Generates secure token, sends branded email + WhatsApp text
-
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import nodemailer from 'nodemailer'
@@ -17,6 +14,32 @@ function fmt(cents: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 }
 
+function getPricingLabel(pricingType: string): string {
+  const labels: Record<string, string> = {
+    tray: 'Per Tray', per_person: 'Per Person',
+    per_piece: 'Per Piece', per_gallon: 'Per Gallon', per_portion: 'Per Portion'
+  }
+  return labels[pricingType] || pricingType
+}
+
+function getSizeOrType(item: any): string {
+  if (item.pricing_type === 'tray') {
+    const sizes: Record<string, string> = { half: 'Small', medium: 'Medium', full: 'Full Tray', custom: 'Multiple' }
+    return sizes[item.tray_size] || item.tray_size || 'Tray'
+  }
+  return getPricingLabel(item.pricing_type)
+}
+
+function getQty(item: any): string {
+  if (item.pricing_type === 'per_person') return `${item.guest_count || item.tray_quantity || 1} ppl`
+  if (item.pricing_type === 'per_piece') return `${item.piece_count || item.tray_quantity || 1} pcs`
+  if (item.pricing_type === 'per_gallon') return `${item.piece_count || item.tray_quantity || 1} gal`
+  if (item.pricing_type === 'per_portion') return `${item.piece_count || item.tray_quantity || 1} portions`
+  // tray
+  if (item.tray_size === 'custom') return `${item.tray_quantity || 1}×`
+  return '1'
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { enquiry_id } = await req.json()
@@ -26,28 +49,19 @@ export async function POST(req: NextRequest) {
 
     // 1. Load enquiry
     const { data: enquiry, error: eErr } = await supabase
-      .from('enquiries')
-      .select('*')
-      .eq('id', enquiry_id)
-      .single()
+      .from('enquiries').select('*').eq('id', enquiry_id).single()
     if (eErr || !enquiry) throw new Error('Enquiry not found')
 
-    // 2. Load LATEST quote for this enquiry (always use most recent)
+    // 2. Load LATEST quote
     const { data: quote, error: qErr } = await supabase
-      .from('quotes')
-      .select('*')
-      .eq('enquiry_id', enquiry_id)
-      .order('version', { ascending: false })
-      .limit(1)
-      .single()
+      .from('quotes').select('*').eq('enquiry_id', enquiry_id)
+      .order('version', { ascending: false }).limit(1).single()
     if (qErr || !quote) throw new Error('Quote not found')
     const quote_id = quote.id
 
     // 3. Load tray items
     const { data: trayItems } = await supabase
-      .from('quote_tray_items')
-      .select('*')
-      .eq('quote_id', quote_id)
+      .from('quote_tray_items').select('*').eq('quote_id', quote_id)
 
     // 4. Load per-person sessions
     const { data: sessions } = await supabase
@@ -62,23 +76,25 @@ export async function POST(req: NextRequest) {
       .eq('enquiry_id', enquiry_id)
     const roundNumber = (count ?? 0) + 1
 
-    // 6. Expire any previous pending tokens
+    // 6. Expire previous pending tokens
     await supabase
       .from('quote_review_tokens')
       .update({ status: 'expired' })
       .eq('enquiry_id', enquiry_id)
       .eq('status', 'pending')
 
-    // 7. Build snapshot
+    // 7. Build snapshot — save ALL fields needed for diff later
     const snapshot = {
       catering_type: quote.catering_type,
       tray_items: (trayItems ?? []).map(item => ({
         id: item.id,
         dish_name: item.dish_name || 'Item',
         category: item.cuisine_region || '',
-        tray_size: item.tray_size || 'Full',
+        pricing_type: item.pricing_type || 'tray',
+        tray_size: item.tray_size || null,
         tray_quantity: item.tray_quantity || 1,
-        pricing_type: item.pricing_type || 'Per Tray',
+        guest_count: item.guest_count || null,
+        piece_count: item.piece_count || null,
         unit_price_cents: item.unit_price_cents || 0,
         total_price_cents: item.total_price_cents || 0,
         customer_comments: '',
@@ -105,20 +121,18 @@ export async function POST(req: NextRequest) {
       balance_cents: Math.round((quote.total_cents || 0) * 0.8),
     }
 
-    // 8. Create token in DB
+    // 8. Create token
     const { data: tokenRow, error: tErr } = await supabase
       .from('quote_review_tokens')
       .insert({
-        enquiry_id,
-        quote_id,
+        enquiry_id, quote_id,
         round_number: roundNumber,
         status: 'pending',
         sent_snapshot: snapshot,
         customer_email: enquiry.customer_email,
         customer_name: enquiry.customer_name,
       })
-      .select()
-      .single()
+      .select().single()
     if (tErr) throw new Error('Failed to create review token: ' + tErr.message)
 
     // 9. Update enquiry
@@ -127,19 +141,19 @@ export async function POST(req: NextRequest) {
       .update({ review_status: 'sent_for_review', latest_review_token_id: tokenRow.id })
       .eq('id', enquiry_id)
 
-    // 10. Build review URL
+    // 10. Build URLs and dates
     const reviewUrl = `${BASE_URL}/review/${tokenRow.token}`
-
-    // 11. Build event date string
     const eventDate = new Date(enquiry.event_date + 'T12:00:00').toLocaleDateString('en-US', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
     })
+    const eventType = (enquiry.event_type || '').split('_')
+      .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 
-    // 12. Send email
+    // 11. Send email
     await sendReviewEmail({
       to: enquiry.customer_email,
       customerName: enquiry.customer_name,
-      eventType: (enquiry.event_type || '').split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+      eventType,
       eventDate,
       venue: enquiry.venue_name || enquiry.venue_address || 'TBD',
       guestCount: enquiry.guest_count,
@@ -148,7 +162,7 @@ export async function POST(req: NextRequest) {
       snapshot,
     })
 
-    // 13. Build WhatsApp / iMessage short text (returned to admin to copy-paste)
+    // 12. WhatsApp message
     const shortMessage = buildShortMessage({
       customerName: enquiry.customer_name,
       eventDate,
@@ -171,8 +185,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ── Email ──────────────────────────────────────────────────
-
 async function sendReviewEmail({
   to, customerName, eventType, eventDate, venue, guestCount,
   reviewUrl, roundNumber, snapshot,
@@ -182,28 +194,29 @@ async function sendReviewEmail({
     auth: { user: process.env.GMAIL_USER!, pass: process.env.GMAIL_APP_PASSWORD! },
   })
 
-  const fmt2 = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
+  const fmt2 = (cents: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 
-  // Build dish rows for email body
+  // Build dish rows
   let dishRowsHtml = ''
+
   if (snapshot.catering_type === 'tray' || snapshot.catering_type === 'hybrid') {
     dishRowsHtml += `
       <tr style="background:#C9A84C">
         <th style="padding:10px;text-align:left;color:#05091A;font-size:11px">DISH</th>
-        <th style="padding:10px;text-align:left;color:#05091A;font-size:11px">CATEGORY</th>
-        <th style="padding:10px;text-align:center;color:#05091A;font-size:11px">TRAY SIZE</th>
+        <th style="padding:10px;text-align:left;color:#05091A;font-size:11px">TYPE / SIZE</th>
         <th style="padding:10px;text-align:center;color:#05091A;font-size:11px">QTY</th>
         <th style="padding:10px;text-align:right;color:#05091A;font-size:11px">UNIT PRICE</th>
         <th style="padding:10px;text-align:right;color:#05091A;font-size:11px">TOTAL</th>
       </tr>`
+
     snapshot.tray_items.forEach((item: any, i: number) => {
       const bg = i % 2 === 0 ? '#ffffff' : '#f9f6f0'
       dishRowsHtml += `
         <tr style="background:${bg}">
           <td style="padding:9px 10px;font-size:13px;color:#1a1a1a;font-weight:600">${item.dish_name}</td>
-          <td style="padding:9px 10px;font-size:12px;color:#666">${item.category}</td>
-          <td style="padding:9px 10px;font-size:12px;color:#444;text-align:center">${item.tray_size}</td>
-          <td style="padding:9px 10px;font-size:12px;color:#444;text-align:center">${item.tray_quantity}</td>
+          <td style="padding:9px 10px;font-size:12px;color:#666">${getSizeOrType(item)}</td>
+          <td style="padding:9px 10px;font-size:12px;color:#444;text-align:center">${getQty(item)}</td>
           <td style="padding:9px 10px;font-size:12px;color:#444;text-align:right">${fmt2(item.unit_price_cents)}</td>
           <td style="padding:9px 10px;font-size:13px;color:#C9A84C;font-weight:bold;text-align:right">${fmt2(item.total_price_cents)}</td>
         </tr>`
@@ -214,7 +227,7 @@ async function sendReviewEmail({
     snapshot.sessions.forEach((sess: any) => {
       dishRowsHtml += `
         <tr style="background:#0A1530">
-          <td colspan="6" style="padding:10px;color:#C9A84C;font-size:12px;font-weight:bold">
+          <td colspan="5" style="padding:10px;color:#C9A84C;font-size:12px;font-weight:bold">
             ${sess.session_name} — ${sess.guest_count} guests
           </td>
         </tr>`
@@ -225,8 +238,7 @@ async function sendReviewEmail({
             <td style="padding:9px 10px;font-size:13px;color:#1a1a1a" colspan="2">
               ${cat.dishes.map((d: any) => d.dish_name).join(', ')}
             </td>
-            <td style="padding:9px 10px;font-size:12px;color:#666">${cat.category_name}</td>
-            <td style="padding:9px 10px;font-size:12px;text-align:center">${sess.guest_count}</td>
+            <td style="padding:9px 10px;font-size:12px;color:#666;text-align:center">${cat.category_name}</td>
             <td style="padding:9px 10px;font-size:12px;text-align:right">${fmt2(cat.price_per_person)}/pp</td>
             <td style="padding:9px 10px;font-size:13px;color:#C9A84C;font-weight:bold;text-align:right">
               ${fmt2(cat.price_per_person * sess.guest_count)}
@@ -244,14 +256,10 @@ async function sendReviewEmail({
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f5f0e8;font-family:Georgia,serif">
 <div style="max-width:640px;margin:0 auto;background:#fff">
-
-  <!-- Header -->
   <div style="background:#05091A;padding:32px 40px;text-align:center">
     <div style="color:#C9A84C;font-size:22px;font-weight:bold;letter-spacing:3px">MAYA INDIAN CATERING</div>
     <div style="color:#F6EDD8;font-size:11px;margin-top:6px;letter-spacing:1px">33 Tuttle St, Wakefield MA · mayacater.com</div>
   </div>
-
-  <!-- Body -->
   <div style="padding:36px 40px">
     <h2 style="color:#05091A;font-size:20px;margin:0 0 8px">Dear ${customerName},</h2>
     <p style="color:#444;font-size:14px;line-height:1.7;margin:0 0 24px">
@@ -259,8 +267,6 @@ async function sendReviewEmail({
         ? 'Thank you for choosing Maya Indian Catering! Please find your catering quote below. Review all details and click the button to confirm or request changes.'
         : `We have updated your quote based on your feedback (Round ${roundNumber}). Please review the changes below.`}
     </p>
-
-    <!-- Event details -->
     <div style="background:#f6edd8;border-left:4px solid #C9A84C;padding:16px 20px;margin-bottom:24px;border-radius:0 6px 6px 0">
       <table style="width:100%;font-size:13px">
         <tr><td style="color:#888;padding:3px 0;width:100px">Event</td><td style="color:#1a1a1a;font-weight:bold">${eventType}</td></tr>
@@ -269,14 +275,10 @@ async function sendReviewEmail({
         <tr><td style="color:#888;padding:3px 0">Guests</td><td style="color:#1a1a1a">${guestCount}</td></tr>
       </table>
     </div>
-
-    <!-- Dish table -->
     <div style="font-size:11px;font-weight:bold;letter-spacing:2px;color:#888;margin-bottom:8px;text-transform:uppercase">Your Menu & Pricing</div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
       ${dishRowsHtml}
     </table>
-
-    <!-- Totals -->
     <table style="width:100%;font-size:13px;margin-bottom:28px">
       <tr><td style="padding:6px 0;color:#666">Subtotal</td><td style="text-align:right;color:#333">${fmt2(snapshot.subtotal_cents)}</td></tr>
       ${snapshot.discount_cents > 0 ? `<tr><td style="padding:6px 0;color:#666">Discount</td><td style="text-align:right;color:#e55">-${fmt2(snapshot.discount_cents)}</td></tr>` : ''}
@@ -288,33 +290,26 @@ async function sendReviewEmail({
       <tr><td style="padding:4px 0;color:#888;font-size:12px">20% Deposit Due Now</td><td style="text-align:right;color:#444;font-size:12px">${fmt2(snapshot.deposit_cents)}</td></tr>
       <tr><td style="padding:4px 0;color:#888;font-size:12px">Balance (3 days before event)</td><td style="text-align:right;color:#444;font-size:12px">${fmt2(snapshot.balance_cents)}</td></tr>
     </table>
-
-    <!-- CTA Button -->
     <div style="text-align:center;margin:32px 0">
       <a href="${reviewUrl}" style="background:#C9A84C;color:#05091A;padding:16px 40px;text-decoration:none;font-weight:bold;font-size:15px;border-radius:4px;display:inline-block;letter-spacing:1px">
         ✅ Review & Confirm Your Quote
       </a>
       <p style="color:#888;font-size:11px;margin-top:12px">Or copy this link: ${reviewUrl}</p>
     </div>
-
     <p style="font-size:13px;color:#444;line-height:1.7">
-      On the review page you can adjust quantities, add comments, or request changes. 
-      We'll get back to you within 24 hours. This can go back and forth as many times as needed until everything is perfect!
+      On the review page you can adjust quantities, add comments, or request changes.
+      We'll get back to you within 24 hours!
     </p>
-
     <p style="margin-top:28px;font-size:13px;color:#444">
       Warm regards,<br>
       <strong>Ashokraja & the Maya Team</strong><br>
-      <span style="color:#888">📞 Call/WhatsApp · 📧 catering@mayacater.com</span>
+      <span style="color:#888">📞 Call/WhatsApp · 📧 indianflamesinc@gmail.com</span>
     </p>
   </div>
-
-  <!-- Footer -->
   <div style="background:#05091A;padding:20px 40px;text-align:center">
     <div style="color:#888;font-size:11px">Maya Indian Catering · 33 Tuttle St, Wakefield MA 01880</div>
     <div style="color:#888;font-size:11px;margin-top:4px">Zelle: indianflamesinc@gmail.com · Balance due 3 days before event</div>
   </div>
-
 </div>
 </body></html>`
 
@@ -325,8 +320,6 @@ async function sendReviewEmail({
     html,
   })
 }
-
-// ── Short WhatsApp / iMessage text ─────────────────────────
 
 function buildShortMessage({ customerName, eventDate, total, reviewUrl, roundNumber }: any) {
   const firstName = customerName.split(' ')[0]
