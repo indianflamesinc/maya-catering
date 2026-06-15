@@ -236,7 +236,6 @@ export default function EnquiryDetailPage() {
                 <ReviewRoundsPanel
                   enquiryId={enquiry.id}
                   quoteId={latestQuote.id}
-                  rounds={reviewRounds}
                   onRoundUpdate={load}
                 />
               </div>
