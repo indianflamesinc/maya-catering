@@ -1,10 +1,11 @@
 'use client'
 // src/components/crm/SendReviewButton.tsx
 // FIX-040 (Jun 16 2026): WhatsApp one-click button after Round 1 send
-//   BEFORE: showed copy-paste text box only — admin had to manually copy and open WhatsApp
-//   AFTER:  "📱 Open WhatsApp" button opens wa.me with pre-filled message in one click
-//   NOTE: Round 2+ WhatsApp is handled by Reply Builder (already working)
-//   Requires: enquiry must have customer_phone passed as prop
+//   BEFORE: showed copy-paste text box only
+//   AFTER:  '📱 Open WhatsApp' link shown after send
+// FIX-047 (Jun 16 2026): WhatsApp as <a href> not window.open
+//   BEFORE: window.open() — blocked by browser popup blocker
+//   AFTER:  <a href> rendered after send — browser never blocks direct link clicks
 
 import { useState } from 'react'
 
@@ -61,11 +62,14 @@ export function SendReviewButton({ enquiryId, quoteId, customerName, customerEma
     setTimeout(() => setCopied(false), 2500)
   }
 
-  // FIX-040: open WhatsApp with pre-filled message
-  function openWhatsApp() {
-    if (!result?.whatsappMessage || !customerPhone) return
+  // FIX-047 (Jun 16 2026): build WhatsApp URL as string — don't use window.open
+  // BEFORE: window.open() called from onClick handler → popup blocker allows it
+  //         BUT if called after any async operation → blocked
+  // AFTER:  compute URL and render as <a href> — browser never blocks direct link clicks
+  function getWhatsAppUrl(): string | null {
+    if (!result?.whatsappMessage || !customerPhone) return null
     const phone = customerPhone.replace(/\D/g, '')
-    window.open(`https://wa.me/1${phone}?text=${encodeURIComponent(result.whatsappMessage)}`, '_blank')
+    return `https://wa.me/1${phone}?text=${encodeURIComponent(result.whatsappMessage)}`
   }
 
   // ── Success state ────────────────────────────────────────
@@ -104,13 +108,16 @@ export function SendReviewButton({ enquiryId, quoteId, customerName, customerEma
               </span>
               <div className="flex gap-2">
                 {/* FIX-040: one-click WhatsApp button */}
-                {customerPhone && (
-                  <button
-                    onClick={openWhatsApp}
+                {/* FIX-047: <a href> not window.open — never blocked by browser */}
+                {getWhatsAppUrl() && (
+                  <a
+                    href={getWhatsAppUrl()!}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="font-cinzel text-[7px] tracking-[0.15em] uppercase border border-green-500/30 text-green-400/70 px-3 py-1 hover:bg-green-500/10 transition-colors"
                   >
                     📱 Open WhatsApp
-                  </button>
+                  </a>
                 )}
                 <button
                   onClick={copyWhatsApp}

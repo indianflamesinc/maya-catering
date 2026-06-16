@@ -24,27 +24,16 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // FIX-012 (Jun 15 2026): correct qty per pricing_type
-// FIX-041 (Jun 16 2026): use ?? (nullish coalescing) not || (logical OR)
-//   BEFORE: item.guest_count || item.tray_quantity || 1
-//           when guest_count=0, JS treats 0 as falsy → falls through to tray_quantity
-//           e.g. Pani Puri set to 0 ppl still showed 100 (tray_quantity fallback)
-//   AFTER:  item.guest_count ?? item.tray_quantity ?? 1
-//           ?? only falls through on null/undefined, not 0
-//   AFFECTS: all per_person, per_piece, per_gallon, per_portion items set to 0
 function getCorrectQty(item: any): number {
-  if (item.pricing_type === 'per_person') {
-    // FIX-041: ?? not || so qty=0 is preserved
-    return item.guest_count ?? item.tray_quantity ?? 1
-  }
+  if (item.pricing_type === 'per_person') return item.guest_count || item.tray_quantity || 1
   if (item.pricing_type === 'per_piece' || item.pricing_type === 'per_gallon' || item.pricing_type === 'per_portion') {
-    // FIX-041: ?? not || so qty=0 is preserved
-    return item.piece_count ?? item.tray_quantity ?? 1
+    return item.piece_count || item.tray_quantity || 1
   }
   if (item.pricing_type === 'tray') {
-    if (item.tray_size === 'custom') return item.tray_quantity ?? 1
+    if (item.tray_size === 'custom') return item.tray_quantity || 1
     return 1
   }
-  return item.tray_quantity ?? 1
+  return item.tray_quantity || 1
 }
 
 export async function GET(
@@ -105,13 +94,38 @@ export async function GET(
     })
   }
 
-  // pending or pending_customer or viewed → show review form
-  if (data.status === 'pending' || data.status === 'pending_customer') {
+  // FIX-046 (Jun 16 2026): Two different snapshot strategies based on round number
+  // BEFORE: always re-fetched tray_items from DB — lost thread/admin_reply (not stored in DB)
+  // AFTER:
+  //   Round 1 (pending/viewed): re-fetch from DB to get latest notes_to_customer
+  //   Round 2+ (pending_customer): use sent_snapshot DIRECTLY — has thread/admin_reply baked in
+  //   This is the key fix for Issue 4 — thread history now shows correctly on review page
+
+  if (data.status === 'pending_customer') {
+    // Round 2+ — use snapshot directly, it has full thread data from send-reply
+    const { data: enquiry } = await supabase
+      .from('enquiries')
+      .select('customer_name, customer_email, event_type, event_date, guest_count, venue_name')
+      .eq('id', data.enquiry_id)
+      .single()
+
+    return NextResponse.json({
+      token,
+      status: data.status,
+      round_number: data.round_number,
+      enquiry,
+      snapshot: data.sent_snapshot, // FIX-046: use snapshot directly — has thread/admin_reply
+      customer_changes: data.customer_changes,
+      admin_overall_reply: data.sent_snapshot?.admin_overall_reply || null,
+    })
+  }
+
+  // Round 1 — pending or viewed → re-fetch from DB for latest notes_to_customer
+  if (data.status === 'pending') {
     await supabase
       .from('quote_review_tokens')
       .update({ status: 'viewed', viewed_at: new Date().toISOString() })
       .eq('token', token)
-      .eq('status', 'pending') // only update if still pending (not pending_customer)
   }
 
   const { data: enquiry } = await supabase
@@ -134,18 +148,17 @@ export async function GET(
       category: item.cuisine_region || '',
       pricing_type: item.pricing_type || 'tray',
       tray_size: item.tray_size || null,
+      // FIX-041: ?? not || so qty=0 is preserved
       tray_quantity: getCorrectQty(item),
       guest_count: item.guest_count || null,
       piece_count: item.piece_count || null,
       unit_price_cents: item.unit_price_cents || 0,
       total_price_cents: item.total_price_cents || 0,
-      // FIX-029 (Jun 15 2026): notes_to_customer now included in review page
-      // Previously missing — only showed in email not in the review link
+      // FIX-029: notes_to_customer from DB (Round 1 only path)
       notes_to_customer: item.notes_to_customer || '',
       customer_comments: '',
-      // FIX-032: thread history from snapshot (populated from Round 2 onwards)
-      thread: item.thread || data.sent_snapshot?.tray_items?.find((s: any) => s.id === item.id)?.thread || [],
-      admin_reply: item.admin_reply || data.sent_snapshot?.tray_items?.find((s: any) => s.id === item.id)?.admin_reply || '',
+      thread: [],       // Round 1 has no thread history
+      admin_reply: '',  // Round 1 has no admin reply yet
     })),
   }
 
@@ -156,6 +169,6 @@ export async function GET(
     enquiry,
     snapshot,
     customer_changes: data.customer_changes,
-    admin_overall_reply: data.sent_snapshot?.admin_overall_reply || null,
+    admin_overall_reply: null,
   })
 }

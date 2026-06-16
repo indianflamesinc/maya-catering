@@ -366,6 +366,32 @@ Format: FIX-### | Date | Symptom | Root Cause | Files Changed
 
 ---
 
+## FIX-046 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Review page Round 2+ not showing thread history, Maya replies, or updated quantities
+  e.g. Avial showed Medium (¾ tray) not Full Tray after admin changed it in Reply Builder
+**Root Cause:** review/[token]/route.ts always re-fetched tray_items from quote_tray_items DB table.
+  thread[] and admin_reply fields are NOT stored in quote_tray_items — only in sent_snapshot.
+  So every time customer opened Round 2+ link, thread/admin_reply was lost (empty [] and '')
+**Fix:** Two-path strategy based on round status:
+  Round 1 (pending/viewed): re-fetch from DB — gets latest notes_to_customer
+  Round 2+ (pending_customer): use sent_snapshot DIRECTLY — has full thread/admin_reply baked in
+  send-reply/route.ts carefully builds complete snapshot with thread — now that data is used
+**Files:** src/app/api/review/[token]/route.ts
+**IMPORTANT:** This is the core fix for thread history visibility on customer review page
+
+---
+
+## FIX-047 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** WhatsApp link not appearing after Round 1 send in SendReviewButton
+**Root Cause:** window.open() used inside onClick handler — but result state was checked
+  with conditional rendering. Same popup blocker issue as FIX-045.
+**Fix:** Replaced window.open() with getWhatsAppUrl() function that returns URL string.
+  Rendered as <a href={url} target="_blank"> — browser never blocks direct anchor clicks.
+  Link appears in success state after send completes.
+**Files:** src/components/crm/SendReviewButton.tsx
+
+---
+
 ## KNOWN ISSUES / FUTURE WORK
 - FIX-004: Date input on new enquiry form (deferred — admin only)
 - Kitchen Prep List PDF (/admin/enquiries/[id]/kitchen) — CRITICAL for Jul 15 & Jul 18 Marriott events
