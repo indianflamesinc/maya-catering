@@ -1,5 +1,8 @@
 'use client'
 // src/components/crm/ReviewRoundsPanel.tsx
+// FIX-034 (Jun 15 2026): "Open Reply Builder" button replaces "Send Round 2" button
+// FIX-033: new status values: pending_customer, pending_maya, accepted
+// Status flow: pending_customer → pending_maya → pending_customer → ... → accepted
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -12,6 +15,8 @@ interface Round {
   sent_snapshot: any
   customer_changes: any[] | null
   customer_comments: string | null
+  admin_replies: any[] | null
+  admin_overall_reply: string | null
   customer_email: string
   customer_name: string
   created_at: string
@@ -24,33 +29,25 @@ interface Props {
   enquiryId: string
   quoteId: string
   onRoundUpdate?: () => void
-  // FIX-028: pass customer phone for WhatsApp button
   customerPhone?: string
   customerName?: string
 }
 
+// FIX-033: updated status config with new values
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  pending:   { label: 'Sent — Awaiting Customer',  color: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300', dot: 'bg-yellow-400' },
-  viewed:    { label: 'Customer Opened Link',       color: 'bg-blue-500/10 border-blue-500/30 text-blue-300',      dot: 'bg-blue-400' },
-  submitted: { label: '⚡ Customer Responded',      color: 'bg-orange-500/10 border-orange-500/30 text-orange-300', dot: 'bg-orange-400' },
-  accepted:  { label: '✅ Accepted & Locked',        color: 'bg-green-500/10 border-green-500/30 text-green-300',   dot: 'bg-green-400' },
-  expired:   { label: 'Expired / Superseded',       color: 'bg-gray-500/10 border-gray-500/20 text-gray-500',      dot: 'bg-gray-500' },
+  pending:          { label: 'Sent — Awaiting Customer',    color: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300',  dot: 'bg-yellow-400' },
+  pending_customer: { label: 'Sent — Awaiting Customer',    color: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300',  dot: 'bg-yellow-400' },
+  viewed:           { label: 'Customer Opened Link',         color: 'bg-blue-500/10 border-blue-500/30 text-blue-300',        dot: 'bg-blue-400' },
+  pending_maya:     { label: '⚡ Customer Responded',        color: 'bg-orange-500/10 border-orange-500/30 text-orange-300',  dot: 'bg-orange-400' },
+  submitted:        { label: '⚡ Customer Responded',        color: 'bg-orange-500/10 border-orange-500/30 text-orange-300',  dot: 'bg-orange-400' },
+  accepted:         { label: '✅ Confirmed — Deposit Pending', color: 'bg-green-500/10 border-green-500/30 text-green-300',   dot: 'bg-green-400' },
+  expired:          { label: 'Superseded by newer round',    color: 'bg-gray-500/10 border-gray-500/20 text-gray-500',        dot: 'bg-gray-500' },
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://maya-catering.vercel.app'
 
 function fmt(cents: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
-}
-
-function getDisplayQty(item: any): number {
-  if (!item) return 0
-  if (item.pricing_type === 'per_person') return item.guest_count || item.tray_quantity || 0
-  if (item.pricing_type === 'per_piece' || item.pricing_type === 'per_gallon' || item.pricing_type === 'per_portion') {
-    return item.piece_count || item.tray_quantity || 0
-  }
-  if (item.tray_size === 'custom') return item.tray_quantity || 1
-  return 1
 }
 
 export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerPhone, customerName }: Props) {
@@ -82,49 +79,17 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerP
     } finally { setActionLoading(null) }
   }
 
-  async function handleSendRound2(currentRoundNumber: number) {
-    // FIX-027 (Jun 15 2026): warn admin if they haven't edited the quote since last round
-    const confirmed = window.confirm(
-      `Send Round ${currentRoundNumber + 1} to customer?\n\nMake sure you've updated the quote in the Quote Builder first based on their feedback.\n\nClick OK to send, Cancel to go edit first.`
-    )
-    if (!confirmed) return
-
-    setActionLoading('round2')
-    try {
-      const res = await fetch('/api/quotes/send-review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enquiry_id: enquiryId }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-
-      // FIX-028: WhatsApp button — open WA with pre-filled message
-      if (data.whatsapp_message && customerPhone) {
-        const phone = customerPhone.replace(/\D/g, '')
-        const waUrl = `https://wa.me/1${phone}?text=${encodeURIComponent(data.whatsapp_message)}`
-        window.open(waUrl, '_blank')
-      }
-
-      await fetchRounds()
-      onRoundUpdate?.()
-    } catch (err: any) {
-      alert('Error: ' + err.message)
-    } finally { setActionLoading(null) }
-  }
-
-  // FIX-028: WhatsApp for first send too
   function openWhatsApp(message: string) {
     if (!customerPhone) return
     const phone = customerPhone.replace(/\D/g, '')
-    const waUrl = `https://wa.me/1${phone}?text=${encodeURIComponent(message)}`
-    window.open(waUrl, '_blank')
+    window.open(`https://wa.me/1${phone}?text=${encodeURIComponent(message)}`, '_blank')
   }
 
   if (loading || rounds.length === 0) return null
 
   const latestRound = rounds[rounds.length - 1]
   const isAccepted = latestRound?.status === 'accepted'
+  const isPendingMaya = latestRound?.status === 'pending_maya' || latestRound?.status === 'submitted'
 
   return (
     <div className="mt-6 border-t border-gold/10 pt-6">
@@ -137,26 +102,40 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerP
         </span>
       </div>
 
+      {/* Action banner when pending Maya */}
+      {isPendingMaya && (
+        <div className="mb-4 rounded-lg border border-orange-500/30 bg-orange-500/10 px-4 py-4 flex items-center justify-between">
+          <div>
+            <p className="font-cinzel text-[8px] tracking-[0.2em] uppercase text-orange-400 mb-1">Action Required</p>
+            <p className="text-[12px] text-orange-200/70">
+              Customer has responded to Round {latestRound.round_number}. Open Reply Builder to respond and send Round {latestRound.round_number + 1}.
+            </p>
+          </div>
+          <Link href={`/admin/enquiries/${enquiryId}/reply`}
+            className="ml-4 flex-shrink-0 rounded bg-orange-500 px-5 py-2.5 font-cinzel text-[8px] tracking-[0.15em] uppercase text-white hover:bg-orange-400 transition-colors flex items-center gap-2">
+            ✏️ Open Reply Builder
+          </Link>
+        </div>
+      )}
+
       <div className="space-y-3">
         {rounds.map((round, idx) => {
           const isLatest = idx === rounds.length - 1
           const cfg = STATUS_CONFIG[round.status] || STATUS_CONFIG.expired
           const changes = round.customer_changes ?? []
-          const snapshot = round.sent_snapshot?.tray_items ?? []
-          const diff = computeDiff(snapshot, changes)
           const reviewUrl = `${BASE_URL}/review/${round.token}`
-
-          // Build WhatsApp message for this round
           const snapshot_data = round.sent_snapshot
           const total = snapshot_data?.total_cents ? fmt(snapshot_data.total_cents) : ''
           const firstName = (customerName || 'Customer').split(' ')[0]
+
           const waMessage = round.round_number === 1
             ? `Hi ${firstName}! 🙏 Your Maya Catering quote is ready!\n\nTotal: ${total}\n\nReview & confirm here:\n${reviewUrl}\n\n— Maya Catering 🍛`
-            : `Hi ${firstName}! We've updated your catering quote (Round ${round.round_number}).\n\nTotal: ${total}\n\nReview the changes here:\n${reviewUrl}\n\n— Maya Catering 🍛`
+            : `Hi ${firstName}! We've updated your catering quote (Round ${round.round_number}).\n\nTotal: ${total}\n\nReview here:\n${reviewUrl}\n\n— Maya Catering 🍛`
 
           return (
             <div key={round.id} className={`rounded-lg border overflow-hidden ${isLatest ? 'border-gold/30' : 'border-gold/10 opacity-60'}`}>
-              {/* Header */}
+
+              {/* Round header */}
               <div className={`flex items-center justify-between px-4 py-3 ${isLatest ? 'bg-[#0A1530]' : 'bg-royal-mid'}`}>
                 <div className="flex items-center gap-3">
                   <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
@@ -169,10 +148,9 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerP
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] text-cream/30">{fmtDate(round.created_at)}</span>
-                  {/* FIX-028: WhatsApp button per round */}
                   {customerPhone && (
                     <button onClick={() => openWhatsApp(waMessage)}
-                      className="font-cinzel text-[7px] tracking-[0.12em] uppercase border border-green-500/30 text-green-400/70 px-2 py-0.5 hover:bg-green-500/10 transition-colors flex items-center gap-1">
+                      className="font-cinzel text-[7px] tracking-[0.12em] uppercase border border-green-500/30 text-green-400/70 px-2 py-0.5 hover:bg-green-500/10 transition-colors">
                       📱 WhatsApp
                     </button>
                   )}
@@ -185,101 +163,67 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerP
 
               {round.viewed_at && (
                 <div className="px-4 py-1.5 bg-blue-500/5 border-b border-gold/5 text-[11px] text-blue-300/60">
-                  👁 Customer opened link: {fmtDate(round.viewed_at)}
+                  👁 Opened: {fmtDate(round.viewed_at)}
                 </div>
               )}
 
-              {round.status === 'submitted' && (
+              {/* Customer feedback — pending_maya or submitted */}
+              {(round.status === 'pending_maya' || round.status === 'submitted') && (
                 <div className="px-4 py-3 border-b border-gold/10">
-                  {diff.length > 0 ? (
+
+                  {/* Dish comments */}
+                  {changes.length > 0 ? (
                     <>
                       <p className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase text-gold/50 mb-3">
-                        {diff.length} Change{diff.length !== 1 ? 's' : ''} Requested
+                        {changes.length} Dish Comment{changes.length !== 1 ? 's' : ''}
                       </p>
-                      <table className="w-full text-[12px]">
-                        <thead>
-                          <tr className="text-[9px] text-cream/30 border-b border-gold/10 uppercase tracking-wider">
-                            <th className="text-left py-1.5 pr-3 font-normal">Dish</th>
-                            <th className="text-right py-1.5 pr-3 font-normal">Was</th>
-                            <th className="text-right py-1.5 pr-3 font-normal">Now</th>
-                            <th className="text-right py-1.5 pr-3 font-normal">Unit Price</th>
-                            <th className="text-right py-1.5 font-normal">New Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {diff.map((d, i) => (
-                            <tr key={i} className="border-b border-gold/5">
-                              <td className="py-2 pr-3 text-cream/80 font-medium">
-                                {d.dish}
-                                {d.comments && <div className="text-[10px] text-yellow-300/60 mt-0.5 italic">{d.comments}</div>}
-                              </td>
-                              <td className="py-2 pr-3 text-cream/30 text-right">
-                                {d.original_qty !== null ? <span className="line-through">{d.original_qty}</span> : '—'}
-                              </td>
-                              <td className="py-2 pr-3 text-green-400 font-bold text-right">{d.updated_qty}</td>
-                              <td className="py-2 pr-3 text-cream/40 text-right">{d.unit_price > 0 ? fmt(d.unit_price) : '—'}</td>
-                              <td className="py-2 text-gold font-bold text-right">
-                                {d.unit_price > 0 ? fmt(d.unit_price * parseFloat(String(d.updated_qty))) : '—'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <div className="flex flex-col gap-2 mb-3">
+                        {changes.map((c: any, i: number) => (
+                          <div key={i} className="flex items-start gap-3 text-[12px]">
+                            <span className="text-cream/60 font-medium min-w-[120px] flex-shrink-0">{c.dish_name}</span>
+                            <span className="text-yellow-200/80 italic">"{c.customer_comments}"</span>
+                            {/* Show admin reply if exists */}
+                            {(round.admin_replies || []).find((r: any) => r.dish_name?.toLowerCase() === c.dish_name?.toLowerCase()) && (
+                              <span className="text-green-300/60 text-[11px]">
+                                ↳ {(round.admin_replies || []).find((r: any) => r.dish_name?.toLowerCase() === c.dish_name?.toLowerCase())?.reply}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </>
                   ) : (
-                    <p className="text-[12px] text-cream/40 italic">No quantity changes — check comments below.</p>
+                    <p className="text-[12px] text-cream/40 italic mb-3">No dish-specific comments.</p>
                   )}
 
+                  {/* Overall comment */}
                   {round.customer_comments && (
-                    <div className="mt-3 bg-yellow-500/10 border border-yellow-500/20 rounded p-3 text-[12px] text-yellow-200/80">
-                      <span className="font-cinzel text-[7px] tracking-[0.15em] uppercase text-yellow-400/60 block mb-1">Customer Comments</span>
-                      {round.customer_comments}
-                    </div>
-                  )}
-                  {changes.filter((c: any) => c.customer_comments).length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {changes.filter((c: any) => c.customer_comments).map((c: any, i: number) => (
-                        <div key={i} className="text-[11px] text-cream/50 pl-2 border-l border-gold/20">
-                          <strong className="text-cream/70">{c.dish_name}:</strong> {c.customer_comments}
-                        </div>
-                      ))}
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded p-3 text-[12px] text-yellow-200/80">
+                      <span className="font-cinzel text-[7px] tracking-[0.15em] uppercase text-yellow-400/60 block mb-1">Overall Message</span>
+                      "{round.customer_comments}"
                     </div>
                   )}
                 </div>
               )}
 
-              {isLatest && round.status === 'submitted' && (
-                <div className="px-4 py-4 bg-[#05091A] space-y-3">
-                  <p className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase text-gold/60">Your Response</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Link href={`/admin/enquiries/${enquiryId}/quote`}
-                      className="flex items-center gap-2 rounded border border-gold/30 px-4 py-2.5 font-cinzel text-[7.5px] tracking-[0.15em] uppercase text-gold hover:bg-gold/10 transition-colors">
-                      ✏️ Edit Quote First
-                    </Link>
-                    <button onClick={() => handleAccept(round.id)} disabled={!!actionLoading}
-                      className="rounded bg-green-600 px-4 py-2.5 font-cinzel text-[7.5px] tracking-[0.15em] uppercase text-white hover:bg-green-500 transition-colors disabled:opacity-40">
-                      {actionLoading === 'accept-' + round.id ? '…' : '✅ Accept & Lock Quote'}
-                    </button>
-                    <button onClick={() => handleSendRound2(round.round_number)} disabled={!!actionLoading}
-                      className="rounded bg-[#C9A84C] px-4 py-2.5 font-cinzel text-[7.5px] tracking-[0.15em] uppercase text-[#05091A] hover:bg-[#E2C87A] transition-colors disabled:opacity-40">
-                      {actionLoading === 'round2' ? 'Sending…' : `📋 Send Round ${round.round_number + 1} to Customer`}
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-cream/25">
-                    Edit Quote → update quantities & notes → then Accept or Send Round {round.round_number + 1}.
-                  </p>
+              {/* Action buttons for latest pending_maya round */}
+              {isLatest && (round.status === 'pending_maya' || round.status === 'submitted') && (
+                <div className="px-4 py-4 bg-[#05091A] flex flex-wrap gap-2">
+                  <Link href={`/admin/enquiries/${enquiryId}/reply`}
+                    className="rounded bg-[#C9A84C] px-5 py-2.5 font-cinzel text-[7.5px] tracking-[0.15em] uppercase text-[#05091A] hover:bg-[#E2C87A] transition-colors flex items-center gap-2">
+                    ✏️ Open Reply Builder — Send Round {round.round_number + 1}
+                  </Link>
+                  <button onClick={() => handleAccept(round.id)} disabled={!!actionLoading}
+                    className="rounded bg-green-600 px-4 py-2.5 font-cinzel text-[7.5px] tracking-[0.15em] uppercase text-white hover:bg-green-500 transition-colors disabled:opacity-40">
+                    {actionLoading === 'accept-' + round.id ? '…' : '✅ Accept & Lock (No Changes)'}
+                  </button>
                 </div>
               )}
 
-              {round.status === 'accepted' && (
-                <div className="px-4 py-3 bg-green-500/5 text-[12px] text-green-300/70">
-                  ✅ Accepted & locked — {fmtDate(round.submitted_at || round.created_at)}
-                </div>
-              )}
-
-              {isLatest && ['pending', 'viewed'].includes(round.status) && (
+              {/* Awaiting customer */}
+              {isLatest && (round.status === 'pending' || round.status === 'pending_customer' || round.status === 'viewed') && (
                 <div className="px-4 py-3 bg-yellow-500/5 text-[12px] text-yellow-300/60 flex items-center justify-between">
-                  <span>⏳ {round.viewed_at ? 'Customer opened — awaiting submission.' : 'Waiting for customer to open review link.'}</span>
+                  <span>⏳ {round.viewed_at ? 'Customer opened link — awaiting their response.' : 'Waiting for customer to open review link.'}</span>
                   <div className="flex gap-2">
                     {customerPhone && (
                       <button onClick={() => openWhatsApp(waMessage)}
@@ -294,6 +238,13 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerP
                   </div>
                 </div>
               )}
+
+              {/* Accepted */}
+              {round.status === 'accepted' && (
+                <div className="px-4 py-3 bg-green-500/5 text-[12px] text-green-300/70">
+                  ✅ Customer confirmed — {fmtDate(round.submitted_at || round.created_at)}
+                </div>
+              )}
             </div>
           )
         })}
@@ -301,35 +252,15 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerP
 
       {isAccepted && (
         <div className="mt-4 rounded-lg border border-green-500/30 bg-green-500/5 px-4 py-3 text-[13px] text-green-300">
-          🎉 Quote review complete — customer accepted. Ready to collect deposit!
+          🎉 Quote accepted! Ready to collect deposit and generate contract.
         </div>
       )}
     </div>
   )
 }
 
-function computeDiff(snapshot: any[], changes: any[]) {
-  const diffs: any[] = []
-  for (const change of changes) {
-    const orig = snapshot.find(
-      (o: any) => o.id === change.id || o.dish_name?.toLowerCase() === change.dish_name?.toLowerCase()
-    )
-    const origQty = orig ? getDisplayQty(orig) : null
-    const newQty  = parseFloat(change.tray_quantity)
-    const unitPrice = change.unit_price_cents ?? orig?.unit_price_cents ?? 0
-    diffs.push({
-      dish: change.dish_name,
-      original_qty: origQty,
-      updated_qty: newQty,
-      unit_price: unitPrice,
-      comments: change.customer_comments || '',
-    })
-  }
-  return diffs
-}
-
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
   })
 }
