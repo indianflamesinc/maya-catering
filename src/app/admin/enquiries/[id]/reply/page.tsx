@@ -1,6 +1,12 @@
 'use client'
 // src/app/admin/enquiries/[id]/reply/page.tsx
 // FIX-038 (Jun 16 2026): Redirect uses enquiry_id from API response not from URL
+// FIX-052 (Jun 16 2026): Tray multiplier as dropdown — only 1×, 1.5×, 1.75×, 2×
+//   BEFORE: free number input allowed invalid values like 1.25, 1.375
+//   AFTER:  dropdown with only valid Maya tray multiples
+// FIX-053 (Jun 16 2026): Maya Note label fix — editable field now says 'Update Note'
+//   BEFORE: both thread display and editable field said 'Maya Note' — confusing
+//   AFTER:  thread = 'Maya Note' (read-only), edit field = 'Update Note'
 // FIX-060 (Jun 16 2026): Success state shown after send instead of immediate redirect
 //   BEFORE: router.push() fired immediately → admin saw no confirmation → clicked Send again
 //   AFTER:  success page shown with round number, WhatsApp button, preview link, back button

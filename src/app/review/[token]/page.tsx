@@ -1,5 +1,8 @@
 'use client'
 // src/app/review/[token]/page.tsx
+// FIX-051 (Jun 16 2026): Button label consistency
+//   BEFORE: instruction said 'Submit Feedback', button said 'Submit My Feedback'
+//   AFTER:  both say 'Submit My Feedback'
 // FIX-029: notes_to_customer now shown on review page
 // FIX-030: qty is read-only — customer adds comments only
 // FIX-031: graceful states for submitted/accepted/expired
@@ -282,7 +285,7 @@ export default function QuoteReviewPage() {
           </h1>
           <p style={{ color: '#555', fontSize: 15, lineHeight: 1.7, margin: 0 }}>
             {round_number === 1
-              ? 'Your catering quote is ready for review. Add comments or questions on any dish below.'
+              ? 'Your catering quote is ready for review. Add comments about any items — to update, add, remove or ask any questions.'
               : `We've updated your quote based on your feedback. Please review Round ${round_number} below.`}
           </p>
         </div>
@@ -319,7 +322,7 @@ export default function QuoteReviewPage() {
         <div style={{ background: '#fffbea', border: '1px solid #f0d060', borderRadius: 8, padding: '14px 18px', marginBottom: 24, fontSize: 14, color: '#555', lineHeight: 1.7 }}>
           <strong>How to review:</strong> Check each dish below. Add <strong>comments or questions</strong> for any item.
           When you're happy with everything, click <strong>"Confirm & Arrange Deposit"</strong>.
-          If you have changes, add your comments and click <strong>"Submit Feedback"</strong>.
+          If you have comments or questions, add them below and click <strong>"Submit My Feedback"</strong>.
         </div>
 
         {/* Dish items */}

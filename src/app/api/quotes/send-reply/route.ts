@@ -2,6 +2,10 @@
 // FIX-036 (Jun 16 2026): Thread history built before expiring old round
 // FIX-037 (Jun 16 2026): Current round admin_replies included in thread snapshot
 // FIX-038 (Jun 16 2026): Correct enquiry_id used for redirect
+// FIX-048 (Jun 16 2026): Email sign-off updated — Maya Team, phone, website
+// FIX-055 (Jun 16 2026): Notes column added to Round 2+ email dish table
+//   BEFORE: DISH|TYPE|QTY|UNIT PRICE|TOTAL — no Notes column
+//   AFTER:  DISH|TYPE|QTY|UNIT PRICE|TOTAL|NOTES — matches Round 1 email format
 // FIX-054 (Jun 16 2026): thread[] includes ALL rounds — removed slice(0,-1) that wiped history
 //   BEFORE: thread.slice(0,-1) removed last entry → Round 2 showed empty thread []
 //   AFTER:  thread = complete history; admin_reply handles current round separately
@@ -361,6 +365,7 @@ async function sendReplyEmail({
         <td style="padding:10px 12px;font-size:12px;color:#444;text-align:center;vertical-align:top">${getQty(item)}</td>
         <td style="padding:10px 12px;font-size:12px;color:#444;text-align:right;vertical-align:top">${fmt(item.unit_price_cents)}</td>
         <td style="padding:10px 12px;font-size:13px;color:#C9A84C;font-weight:bold;text-align:right;vertical-align:top">${fmt(itemTotal)}</td>
+        <td style="padding:10px 12px;font-size:11px;color:#888;font-style:italic;vertical-align:top">${item.notes_to_customer || ''}</td>
       </tr>`
 
     // Thread under dish
@@ -392,7 +397,7 @@ async function sendReplyEmail({
       if (threadHtml) {
         dishRowsHtml += `
           <tr style="background:${bg}">
-            <td colspan="5" style="padding:4px 12px 10px;border-bottom:1px solid #e8dfc8">${threadHtml}</td>
+            <td colspan="6" style="padding:4px 12px 10px;border-bottom:1px solid #e8dfc8">${threadHtml}</td>
           </tr>`
       }
     }
@@ -443,6 +448,7 @@ async function sendReplyEmail({
         <th style="padding:10px 12px;text-align:center;color:#05091A;font-size:11px">QTY</th>
         <th style="padding:10px 12px;text-align:right;color:#05091A;font-size:11px">UNIT PRICE</th>
         <th style="padding:10px 12px;text-align:right;color:#05091A;font-size:11px">TOTAL</th>
+        <th style="padding:10px 12px;text-align:left;color:#05091A;font-size:11px">NOTES</th>
       </tr>
       ${dishRowsHtml}
     </table>
@@ -465,8 +471,8 @@ async function sendReplyEmail({
     </div>
     <p style="margin-top:28px;font-size:13px;color:#444">
       Warm regards,<br>
-      <strong>Ashokraja & the Maya Team</strong><br>
-      <span style="color:#888">📞 Call/WhatsApp · 📧 indianflamesinc@gmail.com</span>
+      <strong>Maya Team</strong><br>
+      <span style="color:#888">📞 617-987-5222 &nbsp;·&nbsp; 📧 indianflamesinc@gmail.com &nbsp;·&nbsp; 🌐 www.mayacater.com</span>
     </p>
   </div>
   <div style="background:#05091A;padding:20px 40px;text-align:center">

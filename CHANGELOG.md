@@ -452,6 +452,64 @@ Format: FIX-### | Date | Symptom | Root Cause | Files Changed
 
 ---
 
+## FIX-048 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Email sign-off showed "Warm regards, Ashokraja & the Maya Team · 📞 Call/WhatsApp · 📧 email"
+**Required:** Maya Team, phone 617-987-5222, email, website www.mayacater.com
+**Fix:** Updated sign-off in both send-review and send-reply email templates
+**Files:** src/app/api/quotes/send-review/route.ts, src/app/api/quotes/send-reply/route.ts
+
+---
+
+## FIX-049 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Email said "On the review page you can adjust quantities, add comments..."
+  Qty is read-only — instruction was wrong and misleading
+**Fix:** Updated to "On the review page you can add comments about any items — to update, add, remove or ask any questions."
+  Also updated WhatsApp message text for consistency
+**Files:** src/app/api/quotes/send-review/route.ts
+
+---
+
+## FIX-050 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** "Open WhatsApp" button in SendReviewButton not working after Round 1 send
+**Root Cause:** window.open() used — browsers can block popups from click handlers
+**Fix:** Replaced with getWhatsAppUrl() function returning URL string.
+  Rendered as <a href={url} target="_blank"> — browser never blocks direct anchor clicks.
+**Files:** src/components/crm/SendReviewButton.tsx
+
+---
+
+## FIX-051 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Instruction text said "Submit Feedback" but button said "Submit My Feedback"
+**Fix:** Updated instruction text to match button label: "Submit My Feedback"
+**Files:** src/app/review/[token]/page.tsx
+
+---
+
+## FIX-052 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Tray multiplier in Reply Builder was free number input allowing 1.25, 1.375 etc.
+  Maya only uses: 1×, 1.5×, 1.75×, 2× as valid tray multiples
+**Fix:** Replaced number input with dropdown: 1× | 1.5× | 1.75× | 2×
+**Files:** src/app/admin/enquiries/[id]/reply/page.tsx
+
+---
+
+## FIX-053 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** "Maya Note" label appeared twice per dish in Reply Builder
+  — once in thread (read-only display) and once on the editable field below
+**Fix:** Editable field now labeled "Update Note" — distinguishes from read-only "Maya Note" in thread
+**Files:** src/app/admin/enquiries/[id]/reply/page.tsx
+
+---
+
+## FIX-055 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Round 2+ customer email dish table missing Notes column
+  Round 1 email had: DISH|TYPE/SIZE|QTY|UNIT PRICE|TOTAL|NOTES
+  Round 2+ email had: DISH|TYPE|QTY|UNIT PRICE|TOTAL (no Notes)
+**Fix:** Added Notes column to send-reply email template to match send-review format
+**Files:** src/app/api/quotes/send-reply/route.ts
+
+---
+
 ## KNOWN ISSUES / FUTURE WORK
 - FIX-004: Date input on new enquiry form (deferred — admin only)
 - Kitchen Prep List PDF (/admin/enquiries/[id]/kitchen) — CRITICAL for Jul 15 & Jul 18 Marriott events

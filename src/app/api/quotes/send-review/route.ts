@@ -1,4 +1,10 @@
 // src/app/api/quotes/send-review/route.ts
+// FIX-048 (Jun 16 2026): Email sign-off updated
+//   BEFORE: 'Warm regards, Ashokraja & the Maya Team · 📞 Call/WhatsApp · 📧 email'
+//   AFTER:  'Warm regards, Maya Team · 📞 617-987-5222 · 📧 email · 🌐 www.mayacater.com'
+// FIX-049 (Jun 16 2026): Email instruction text updated — qty is read-only now
+//   BEFORE: 'On the review page you can adjust quantities, add comments...'
+//   AFTER:  'On the review page you can add comments about any items — to update, add, remove...'
 // FIX-006 (Jun 15 2026): custom tray shows multiplier not 'Multiple' in getSizeOrType()
 //   BEFORE: getSizeOrType mapped tray_size=custom to 'Multiple'
 //   AFTER:  shows '2×' etc using tray_quantity
@@ -7,6 +13,12 @@
 //   AFTER:  notes_to_customer saved in snapshot and rendered in email dish table NOTES column
 
 // src/app/api/quotes/send-review/route.ts
+// FIX-048 (Jun 16 2026): Email sign-off updated
+//   BEFORE: 'Warm regards, Ashokraja & the Maya Team · 📞 Call/WhatsApp · 📧 email'
+//   AFTER:  'Warm regards, Maya Team · 📞 617-987-5222 · 📧 email · 🌐 www.mayacater.com'
+// FIX-049 (Jun 16 2026): Email instruction text updated — qty is read-only now
+//   BEFORE: 'On the review page you can adjust quantities, add comments...'
+//   AFTER:  'On the review page you can add comments about any items — to update, add, remove...'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import nodemailer from 'nodemailer'
@@ -305,13 +317,12 @@ async function sendReviewEmail({
       <p style="color:#888;font-size:11px;margin-top:12px">Or copy this link: ${reviewUrl}</p>
     </div>
     <p style="font-size:13px;color:#444;line-height:1.7">
-      On the review page you can adjust quantities, add comments, or request changes.
-      We'll get back to you within 24 hours!
+      On the review page you can add comments about any items — to update, add, remove or ask any questions. We'll get back to you within 24 hours!
     </p>
     <p style="margin-top:28px;font-size:13px;color:#444">
       Warm regards,<br>
-      <strong>Ashokraja & the Maya Team</strong><br>
-      <span style="color:#888">📞 Call/WhatsApp · 📧 indianflamesinc@gmail.com</span>
+      <strong>Maya Team</strong><br>
+      <span style="color:#888">📞 617-987-5222 &nbsp;·&nbsp; 📧 indianflamesinc@gmail.com &nbsp;·&nbsp; 🌐 www.mayacater.com</span>
     </p>
   </div>
   <div style="background:#05091A;padding:20px 40px;text-align:center">
@@ -330,6 +341,6 @@ async function sendReviewEmail({
 function buildShortMessage({ customerName, eventDate, total, reviewUrl, roundNumber }: any) {
   const firstName = customerName.split(' ')[0]
   return roundNumber === 1
-    ? `Hi ${firstName}! 🙏 Your Maya Catering quote is ready!\n\nEvent: ${eventDate}\nTotal: ${total}\n\nReview & confirm here:\n${reviewUrl}\n\nYou can adjust quantities or leave comments on that page. Let us know if you have any questions! — Maya Catering 🍛`
+    ? `Hi ${firstName}! 🙏 Your Maya Catering quote is ready!\n\nEvent: ${eventDate}\nTotal: ${total}\n\nReview & confirm here:\n${reviewUrl}\n\nAdd your comments or questions on any dish. We'll get back to you within 24 hours! — Maya Catering 🍛`
     : `Hi ${firstName}! We've updated your catering quote (Round ${roundNumber}).\n\nTotal: ${total}\n\nReview the changes here:\n${reviewUrl}\n\n— Maya Catering 🍛`
 }

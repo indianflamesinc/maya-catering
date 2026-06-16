@@ -1,11 +1,9 @@
 'use client'
 // src/components/crm/SendReviewButton.tsx
 // FIX-040 (Jun 16 2026): WhatsApp one-click button after Round 1 send
-//   BEFORE: showed copy-paste text box only
-//   AFTER:  '📱 Open WhatsApp' link shown after send
-// FIX-047 (Jun 16 2026): WhatsApp as <a href> not window.open
-//   BEFORE: window.open() — blocked by browser popup blocker
-//   AFTER:  <a href> rendered after send — browser never blocks direct link clicks
+// FIX-050 (Jun 16 2026): WhatsApp as <a href> not window.open
+//   BEFORE: window.open() after click → browser popup blocker can block it
+//   AFTER:  getWhatsAppUrl() returns string → <a href> rendered → never blocked
 
 import { useState } from 'react'
 
