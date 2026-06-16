@@ -510,6 +510,83 @@ Format: FIX-### | Date | Symptom | Root Cause | Files Changed
 
 ---
 
+## FIX-061 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Round 2+ review page showed qty=1 for all per_person, per_piece, per_gallon, per_portion items
+  e.g. Naan "1 pcs" (should be 100), Pani Puri "1 ppl" (should be 60), Tea "1 gal" (should be 2)
+**Root Cause:** getQtyLabel() in review/[token]/page.tsx always read item.tray_quantity.
+  For per_person items, correct qty is in guest_count. For per_piece/per_gallon/per_portion, it's piece_count.
+  The snapshot sets tray_quantity=1 (default) for these types → showed 1 everywhere.
+**Fix:** getQtyLabel() now reads correct field per pricing_type:
+  per_person → guest_count, per_piece/per_gallon/per_portion → piece_count, tray → tray_quantity
+  Uses ?? fallback chain so works for both Round 1 (DB) and Round 2+ (snapshot) tokens.
+**Files:** src/app/review/[token]/page.tsx
+
+---
+
+## FIX-062 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Maya reply in conversation thread shown as green pill/badge (background color + border radius)
+  instead of plain text like customer comment lines
+**Fix:** Removed background:'#f0fff0' and borderRadius:4 from Maya reply span.
+  Now renders as plain green text, consistent with other thread entries.
+**Files:** src/app/review/[token]/page.tsx
+
+---
+
+## FIX-064 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Maya reply showing twice per dish on review page and in email
+  e.g. "↳ Maya (R1): increased" then immediately "↳ Maya Reply: increased"
+**Root Cause:** FIX-054 made thread[] include ALL rounds.
+  But review page also rendered admin_reply field separately → same reply in both places.
+**Fix:** Removed separate admin_reply render block from review page.
+  thread[] is the single source of truth for all conversation history.
+  admin_reply field on snapshot is now only used in email template (where it shows correctly as 'Maya Reply').
+**Files:** src/app/review/[token]/page.tsx
+
+---
+
+## FIX-065 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** "Message from Maya Team" green banner missing in Round 3+ emails
+**Root Cause:** Template condition checked adminOverallReply as falsy — empty string or whitespace passed
+**Fix:** Changed condition to adminOverallReply?.trim() — only shows when non-empty after trim
+**Files:** src/app/api/quotes/send-reply/route.ts
+
+---
+
+## FIX-066 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Email greeting said "Dear Test," for customer named "Test Customer 001"
+**Root Cause:** firstName = customerName.split(' ')[0] — takes only first word
+  For simple "First Last" names this is fine, but "Test Customer 001" gives "Test"
+**Fix:** If name has more than 2 parts, use full name as greeting
+  nameParts.length <= 2 ? nameParts[0] : customerName
+  "Test Customer 001" → "Dear Test Customer 001,"
+  "Kannan Kesavalu" → "Dear Kannan," (unchanged)
+**Files:** src/app/api/quotes/send-reply/route.ts
+
+---
+
+## FIX-067 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Latest Quote badge shows "DRAFT" even after customer confirmed and deposit paid
+**Root Cause:** advanceStatus() only updated enquiry.status, never updated quotes.status
+  Quote remained in 'draft' state regardless of enquiry pipeline stage
+**Fix:** advanceStatus() now also PATCHes latest quote status:
+  deposit_paid/confirmed/completed → 'approved'
+  quoted → 'sent'
+  others → 'draft'
+**Note:** Requires /api/quotes/[id] PATCH endpoint to support status update
+**Files:** src/app/admin/enquiries/[id]/page.tsx
+
+---
+
+## FIX-068 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** "Send Quote for Customer Review" button visible even at deposit_paid/confirmed stages
+**Root Cause:** No condition on SendReviewButton render — always showed when customer_email present
+**Fix:** Added status check — button hidden when status is:
+  approved, deposit_paid, confirmed, completed, cancelled
+  Only shown for: new, contacted, tasting, quoted, negotiating
+**Files:** src/app/admin/enquiries/[id]/page.tsx
+
+---
+
 ## KNOWN ISSUES / FUTURE WORK
 - FIX-004: Date input on new enquiry form (deferred — admin only)
 - Kitchen Prep List PDF (/admin/enquiries/[id]/kitchen) — CRITICAL for Jul 15 & Jul 18 Marriott events

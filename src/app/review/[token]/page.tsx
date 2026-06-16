@@ -7,6 +7,15 @@
 // FIX-030: qty is read-only — customer adds comments only
 // FIX-031: graceful states for submitted/accepted/expired
 // FIX-032: full conversation thread per dish
+// FIX-061 (Jun 16 2026): getQtyLabel reads correct field per pricing_type
+//   BEFORE: always used tray_quantity → "1 pcs" for all per_person/per_piece items on Round 2+
+//   AFTER:  per_person→guest_count, per_piece/per_gallon/per_portion→piece_count, tray→tray_quantity
+// FIX-062 (Jun 16 2026): Maya reply shown as plain text not green pill badge
+//   BEFORE: background:'#f0fff0', borderRadius:4 → pill/badge style
+//   AFTER:  plain green text, consistent with other thread entries
+// FIX-064 (Jun 16 2026): Removed duplicate admin_reply render
+//   BEFORE: admin_reply rendered separately + also in thread[] → same reply showed twice
+//   AFTER:  only thread[] renders history; admin_reply field removed from render
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -26,13 +35,17 @@ function getTrayLabel(item: any): string {
   return map[item.tray_size] ?? item.tray_size ?? 'Tray'
 }
 
+// FIX-061 (Jun 16 2026): read correct qty field per pricing_type
+// BEFORE: always used item.tray_quantity — which is 1 for per_person/per_piece items in snapshot
+//         Round 2+ review page showed "1 pcs" for Naan (100 pcs), "1 ppl" for Pani Puri (60 ppl) etc.
+// AFTER:  per_person → guest_count, per_piece/per_gallon/per_portion → piece_count, tray → tray_quantity
+// MATCHES: getCorrectQty() logic in review/[token]/route.ts
 function getQtyLabel(item: any): string {
-  const q = item.tray_quantity ?? 1
-  if (item.pricing_type === 'per_piece')   return `${q} pcs`
-  if (item.pricing_type === 'per_person')  return `${q} ppl`
-  if (item.pricing_type === 'per_gallon')  return `${q} gal`
-  if (item.pricing_type === 'per_portion') return `${q} portions`
-  if (item.tray_size === 'custom') return `${q}×`
+  if (item.pricing_type === 'per_person')  return `${item.guest_count ?? item.tray_quantity ?? 1} ppl`
+  if (item.pricing_type === 'per_piece')   return `${item.piece_count ?? item.tray_quantity ?? 1} pcs`
+  if (item.pricing_type === 'per_gallon')  return `${item.piece_count ?? item.tray_quantity ?? 1} gal`
+  if (item.pricing_type === 'per_portion') return `${item.piece_count ?? item.tray_quantity ?? 1} portions`
+  if (item.tray_size === 'custom') return `${item.tray_quantity ?? 1}×`
   return '1'
 }
 
@@ -199,7 +212,7 @@ export default function QuoteReviewPage() {
                 <div style={{ color: '#555', fontSize: 12 }}>{getTrayLabel(item)}</div>
                 <div style={{ textAlign: 'center', color: '#444', fontSize: 13 }}>{getQtyLabel(item)}</div>
                 <div style={{ textAlign: 'right', color: '#555', fontSize: 13 }}>{fmt(item.unit_price_cents)}</div>
-                <div style={{ textAlign: 'right', color: '#C9A84C', fontWeight: 'bold', fontSize: 14 }}>{fmt(item.unit_price_cents * (item.tray_quantity ?? 1))}</div>
+                <div style={{ textAlign: 'right', color: '#C9A84C', fontWeight: 'bold', fontSize: 14 }}>{fmt(item.unit_price_cents * (item.tray_quantity ?? item.guest_count ?? item.piece_count ?? 1))}</div>
               </div>
             ))}
           </div>
@@ -345,7 +358,7 @@ export default function QuoteReviewPage() {
                     <div style={{ textAlign: 'center', color: '#444', fontSize: 14, fontWeight: 'bold' }}>{getQtyLabel(item)}</div>
                     <div style={{ textAlign: 'right', color: '#555', fontSize: 13 }}>{fmt(item.unit_price_cents)}</div>
                     <div style={{ textAlign: 'right', color: '#C9A84C', fontWeight: 'bold', fontSize: 15 }}>
-                      {fmt(item.unit_price_cents * (item.tray_quantity ?? 1))}
+                      {fmt(item.unit_price_cents * (item.tray_quantity ?? item.guest_count ?? item.piece_count ?? 1))}
                     </div>
                   </div>
 
@@ -368,22 +381,22 @@ export default function QuoteReviewPage() {
                             <span style={{ color: '#b8860b', fontWeight: 'bold', flexShrink: 0, minWidth: 80 }}>💬 You (R{t.round}):</span>
                             <span style={{ color: '#666' }}>{t.customer_comment}</span>
                           </div>
+                          {/* FIX-062 (Jun 16 2026): plain text not pill badge
+                               BEFORE: background: '#f0fff0', borderRadius: 4 → showed as green pill
+                               AFTER:  plain text, same style as customer comment line */}
                           {t.admin_reply && (
                             <div style={{ display: 'flex', gap: 8, marginBottom: 6, fontSize: 12, paddingLeft: 16 }}>
                               <span style={{ color: '#2e7d32', fontWeight: 'bold', flexShrink: 0, minWidth: 64 }}>↳ Maya (R{t.round}):</span>
-                              <span style={{ color: '#444', background: '#f0fff0', padding: '2px 8px', borderRadius: 4 }}>{t.admin_reply}</span>
+                              <span style={{ color: '#2e7d32' }}>{t.admin_reply}</span>
                             </div>
                           )}
                         </div>
                       ))}
 
-                      {/* Current round admin reply (Round 2+) */}
-                      {item.admin_reply && (
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 4, fontSize: 12 }}>
-                          <span style={{ color: '#2e7d32', fontWeight: 'bold', flexShrink: 0, minWidth: 80 }}>↳ Maya Reply:</span>
-                          <span style={{ color: '#1a5c1a', background: '#e8f5e9', padding: '3px 10px', borderRadius: 4 }}>{item.admin_reply}</span>
-                        </div>
-                      )}
+                      {/* FIX-064 (Jun 16 2026): removed separate admin_reply render
+                           BEFORE: admin_reply rendered separately PLUS also in thread[] → showed twice
+                           AFTER:  thread[] contains ALL rounds (FIX-054), admin_reply field is redundant
+                           thread[] already shows "↳ Maya (RN): reply" for every round */}
                     </div>
                   )}
 
