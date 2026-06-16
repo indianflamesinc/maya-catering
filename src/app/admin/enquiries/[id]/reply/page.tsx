@@ -1,13 +1,19 @@
 'use client'
 // src/app/admin/enquiries/[id]/reply/page.tsx
-// FIX-039 (Jun 16 2026): Price auto-updates when tray size changes
-//   — fetches master menu and matches by dish name (snapshot has no master_id)
-//   — half→small price, medium price, full/custom→full price
 // FIX-038 (Jun 16 2026): Redirect uses enquiry_id from API response not from URL
-//   — URL param [id] may differ from token's enquiry_id in edge cases
+//   BEFORE: used URL param [id] for redirect — wrong if token belongs to different enquiry
+//   AFTER:  data.enquiry_id from send-reply API response used for redirect
+// FIX-039 (Jun 16 2026): Price auto-updates when tray size changes
+//   BEFORE: snapshot has no master_id so price lookup impossible
+//   AFTER:  fetches master menu, matches by dish name, auto-updates price on tray_size change
+// FIX-042 (Jun 16 2026): Reply Builder loads correctly when opened from email link
+//   BEFORE: only searched by enquiry_id from URL param → failed when token's enquiry_id differs
+//   AFTER:  also accepts ?token= query param; loads directly from token if provided
+//           email's "Open Reply Builder" link now passes token so it always loads correctly
+//   ALSO:   ReviewRoundsPanel email link updated to include token param
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Send, Plus, Trash2, Search } from 'lucide-react'
 
@@ -73,6 +79,9 @@ const numInp = "bg-[#0a1428] border border-gold/20 text-cream font-jost text-[13
 
 export default function ReplyBuilderPage() {
   const { id } = useParams<{ id: string }>()
+  // FIX-042: also read token from query string (set by email link)
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+  const tokenFromEmail = searchParams?.get('token') || null
   const router = useRouter()
 
   const [enquiry, setEnquiry] = useState<any>(null)
@@ -125,14 +134,39 @@ export default function ReplyBuilderPage() {
       }
       setMasterMenuMap(menuMap)
 
-      const rRes = await fetch(`/api/quotes/review-rounds?enquiry_id=${id}`)
-      const rData = await rRes.json()
-      const rounds: any[] = rData.rounds || []
+      // FIX-042: if token provided (from email link), load that specific round directly
+      // This handles the case where the token's enquiry_id differs from URL param
+      // (can happen due to test data or manual DB edits)
+      let latest: any = null
+      let rounds: any[] = []
 
-      const submitted = rounds.filter(r => r.status === 'pending_maya' || r.status === 'submitted')
-      const latest = submitted[submitted.length - 1]
+      if (tokenFromEmail) {
+        // Load directly from token — most reliable path (email link)
+        const tRes = await fetch(`/api/review/${tokenFromEmail}`)
+        const tData = await tRes.json()
+        if (tData && !tData.error && (tData.status === 'pending_maya' || tData.status === 'submitted')) {
+          // Build a round object from the token data
+          // Also load full round data from review-rounds using the token's enquiry_id
+          const tokenEnquiryId = tData.enquiry?.id || id
+          const rRes = await fetch(`/api/quotes/review-rounds?enquiry_id=${tokenEnquiryId}`)
+          const rData = await rRes.json()
+          rounds = rData.rounds || []
+          const submitted = rounds.filter((r: any) => r.status === 'pending_maya' || r.status === 'submitted')
+          latest = submitted[submitted.length - 1]
+        }
+      }
+
+      // Fallback: search by enquiry_id from URL (normal path — Open Reply Builder button in CRM)
       if (!latest) {
-        setError('No customer response found.')
+        const rRes = await fetch(`/api/quotes/review-rounds?enquiry_id=${id}`)
+        const rData = await rRes.json()
+        rounds = rData.rounds || []
+        const submitted = rounds.filter((r: any) => r.status === 'pending_maya' || r.status === 'submitted')
+        latest = submitted[submitted.length - 1]
+      }
+
+      if (!latest) {
+        setError('No customer response found. Customer may not have submitted their review yet.')
         setLoading(false)
         return
       }

@@ -1,7 +1,10 @@
 'use client'
 // src/components/crm/SendReviewButton.tsx
-// Sends quote review link to customer via email
-// Also shows WhatsApp/iMessage short message for admin to copy-paste
+// FIX-040 (Jun 16 2026): WhatsApp one-click button after Round 1 send
+//   BEFORE: showed copy-paste text box only — admin had to manually copy and open WhatsApp
+//   AFTER:  "📱 Open WhatsApp" button opens wa.me with pre-filled message in one click
+//   NOTE: Round 2+ WhatsApp is handled by Reply Builder (already working)
+//   Requires: enquiry must have customer_phone passed as prop
 
 import { useState } from 'react'
 
@@ -10,9 +13,11 @@ interface Props {
   quoteId: string
   customerName: string
   customerEmail: string
+  // FIX-040: phone needed for WhatsApp one-click
+  customerPhone?: string
 }
 
-export function SendReviewButton({ enquiryId, quoteId, customerName, customerEmail }: Props) {
+export function SendReviewButton({ enquiryId, quoteId, customerName, customerEmail, customerPhone }: Props) {
   const [loading, setLoading] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
   const [result, setResult] = useState<{
@@ -56,8 +61,14 @@ export function SendReviewButton({ enquiryId, quoteId, customerName, customerEma
     setTimeout(() => setCopied(false), 2500)
   }
 
-  // ── Success state ────────────────────────────────────────
+  // FIX-040: open WhatsApp with pre-filled message
+  function openWhatsApp() {
+    if (!result?.whatsappMessage || !customerPhone) return
+    const phone = customerPhone.replace(/\D/g, '')
+    window.open(`https://wa.me/1${phone}?text=${encodeURIComponent(result.whatsappMessage)}`, '_blank')
+  }
 
+  // ── Success state ────────────────────────────────────────
   if (result?.success) {
     return (
       <div className="mt-4 space-y-3">
@@ -89,14 +100,25 @@ export function SendReviewButton({ enquiryId, quoteId, customerName, customerEma
           <div className="rounded-lg border border-gold/20 bg-royal-mid p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="font-cinzel text-[8px] tracking-[0.2em] uppercase text-gold">
-                WhatsApp / iMessage — Copy & Send
+                WhatsApp / iMessage
               </span>
-              <button
-                onClick={copyWhatsApp}
-                className="font-cinzel text-[7px] tracking-[0.15em] uppercase border border-gold/30 text-gold px-3 py-1 hover:bg-gold/10 transition-colors"
-              >
-                {copied ? '✅ Copied!' : '📋 Copy'}
-              </button>
+              <div className="flex gap-2">
+                {/* FIX-040: one-click WhatsApp button */}
+                {customerPhone && (
+                  <button
+                    onClick={openWhatsApp}
+                    className="font-cinzel text-[7px] tracking-[0.15em] uppercase border border-green-500/30 text-green-400/70 px-3 py-1 hover:bg-green-500/10 transition-colors"
+                  >
+                    📱 Open WhatsApp
+                  </button>
+                )}
+                <button
+                  onClick={copyWhatsApp}
+                  className="font-cinzel text-[7px] tracking-[0.15em] uppercase border border-gold/30 text-gold px-3 py-1 hover:bg-gold/10 transition-colors"
+                >
+                  {copied ? '✅ Copied!' : '📋 Copy'}
+                </button>
+              </div>
             </div>
             <pre className="text-cream/70 text-[12px] leading-relaxed whitespace-pre-wrap font-sans bg-ink/50 p-3 rounded">
               {result.whatsappMessage}
@@ -116,7 +138,6 @@ export function SendReviewButton({ enquiryId, quoteId, customerName, customerEma
   }
 
   // ── Error state ──────────────────────────────────────────
-
   if (result?.success === false) {
     return (
       <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-4">
@@ -130,7 +151,6 @@ export function SendReviewButton({ enquiryId, quoteId, customerName, customerEma
   }
 
   // ── Default / confirm state ──────────────────────────────
-
   return (
     <div className="space-y-2">
       {confirmed && (

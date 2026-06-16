@@ -99,7 +99,12 @@ async function notifyAdmin({
   })
 
   const adminUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/admin/enquiries/${enquiryId}`
-  const replyUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/admin/enquiries/${enquiryId}/reply`
+  // FIX-042 (Jun 16 2026): include token in Reply Builder URL
+  // BEFORE: /admin/enquiries/{id}/reply — loadAll() searched by enquiry_id only
+  //         failed when token's enquiry_id didn't match URL param (test data edge case)
+  // AFTER:  /admin/enquiries/{id}/reply?token={token} — Reply Builder loads directly from token
+  //         guaranteed to find the right round regardless of enquiry_id matching
+  const replyUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/admin/enquiries/${enquiryId}/reply?token=${token}`
 
   const fmt = (c: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(c / 100)

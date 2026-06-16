@@ -24,16 +24,27 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // FIX-012 (Jun 15 2026): correct qty per pricing_type
+// FIX-041 (Jun 16 2026): use ?? (nullish coalescing) not || (logical OR)
+//   BEFORE: item.guest_count || item.tray_quantity || 1
+//           when guest_count=0, JS treats 0 as falsy → falls through to tray_quantity
+//           e.g. Pani Puri set to 0 ppl still showed 100 (tray_quantity fallback)
+//   AFTER:  item.guest_count ?? item.tray_quantity ?? 1
+//           ?? only falls through on null/undefined, not 0
+//   AFFECTS: all per_person, per_piece, per_gallon, per_portion items set to 0
 function getCorrectQty(item: any): number {
-  if (item.pricing_type === 'per_person') return item.guest_count || item.tray_quantity || 1
+  if (item.pricing_type === 'per_person') {
+    // FIX-041: ?? not || so qty=0 is preserved
+    return item.guest_count ?? item.tray_quantity ?? 1
+  }
   if (item.pricing_type === 'per_piece' || item.pricing_type === 'per_gallon' || item.pricing_type === 'per_portion') {
-    return item.piece_count || item.tray_quantity || 1
+    // FIX-041: ?? not || so qty=0 is preserved
+    return item.piece_count ?? item.tray_quantity ?? 1
   }
   if (item.pricing_type === 'tray') {
-    if (item.tray_size === 'custom') return item.tray_quantity || 1
+    if (item.tray_size === 'custom') return item.tray_quantity ?? 1
     return 1
   }
-  return item.tray_quantity || 1
+  return item.tray_quantity ?? 1
 }
 
 export async function GET(

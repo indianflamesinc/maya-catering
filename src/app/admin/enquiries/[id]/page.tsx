@@ -240,11 +240,13 @@ export default function EnquiryDetailPage() {
                     Open Quote Builder →
                   </Link>
                   {enquiry.customer_email && (
+                    {/* FIX-040 (Jun 16 2026): customerPhone passed for WhatsApp one-click after Round 1 */}
                     <SendReviewButton
                       enquiryId={enquiry.id}
                       quoteId={latestQuote.id}
                       customerName={enquiry.customer_name}
                       customerEmail={enquiry.customer_email}
+                      customerPhone={enquiry.customer_phone}
                     />
                   )}
                 </div>
