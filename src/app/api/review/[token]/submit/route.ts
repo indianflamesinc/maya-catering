@@ -70,6 +70,8 @@ export async function POST(
 
     await notifyAdmin({
       enquiryId: tokenRow.enquiry_id,
+      // FIX-042: pass token so Reply Builder URL includes ?token= param
+      reviewToken: token,
       roundNumber: tokenRow.round_number,
       customerName: enquiry?.customer_name || 'Customer',
       customerEmail: enquiry?.customer_email || '',
@@ -90,7 +92,7 @@ export async function POST(
 }
 
 async function notifyAdmin({
-  enquiryId, roundNumber, customerName, customerEmail, customerPhone,
+  enquiryId, reviewToken, roundNumber, customerName, customerEmail, customerPhone,
   eventType, eventDate, dishComments, overallComments, snapshot,
 }: any) {
   const mailer = nodemailer.createTransport({
@@ -104,7 +106,7 @@ async function notifyAdmin({
   //         failed when token's enquiry_id didn't match URL param (test data edge case)
   // AFTER:  /admin/enquiries/{id}/reply?token={token} — Reply Builder loads directly from token
   //         guaranteed to find the right round regardless of enquiry_id matching
-  const replyUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/admin/enquiries/${enquiryId}/reply?token=${token}`
+  const replyUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/admin/enquiries/${enquiryId}/reply?token=${reviewToken}`
 
   const fmt = (c: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(c / 100)
