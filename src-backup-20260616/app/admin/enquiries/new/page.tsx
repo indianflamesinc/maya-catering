@@ -1,11 +1,4 @@
 'use client'
-// src/app/admin/enquiries/new/page.tsx
-// FIX-009 (Jun 15 2026): 'Save + Quote' replaces 'Save + Schedule Tasting' as secondary CTA
-//   BEFORE: secondary button said 'Save + Schedule Tasting' — most enquiries go straight to quote
-//   AFTER:  'Save + Quote' is secondary CTA; Tasting kept as tertiary option
-// FIX-024 (Jun 15 2026): default event_type changed from 'wedding' to 'home_party'
-//   BEFORE: new enquiry form defaulted to wedding — most enquiries are home parties
-//   AFTER:  default is home_party; admin changes if needed
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'

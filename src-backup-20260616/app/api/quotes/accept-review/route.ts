@@ -1,9 +1,4 @@
 // src/app/api/quotes/accept-review/route.ts
-// Called from ReviewRoundsPanel when admin clicks 'Accept & Lock Quote' 
-// Used when customer has responded but admin decides to accept their changes without sending Round N
-// Sets token status → accepted, enquiry status → approved
-// Different from confirm-happy (FIX-013) which is triggered by CUSTOMER clicking 'Confirm'
-// src/app/api/quotes/accept-review/route.ts
 // POST — accept a review round, lock the quote
 
 import { NextRequest, NextResponse } from 'next/server'

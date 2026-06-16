@@ -1,12 +1,4 @@
 // src/app/api/quotes/send-review/route.ts
-// FIX-006 (Jun 15 2026): custom tray shows multiplier not 'Multiple' in getSizeOrType()
-//   BEFORE: getSizeOrType mapped tray_size=custom to 'Multiple'
-//   AFTER:  shows '2×' etc using tray_quantity
-// FIX-026 (Jun 15 2026): notes_to_customer included in snapshot and shown in email
-//   BEFORE: customer_comments field was saved but never shown to customer
-//   AFTER:  notes_to_customer saved in snapshot and rendered in email dish table NOTES column
-
-// src/app/api/quotes/send-review/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import nodemailer from 'nodemailer'

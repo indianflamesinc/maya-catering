@@ -1,18 +1,4 @@
 'use client'
-// src/app/admin/enquiries/[id]/quote/page.tsx
-// FIX-005 (Jun 15 2026): all 3 fee fields restored when loading existing quote
-//   BEFORE: only delivery fee loaded; setup and service reset to $0 on reload
-//   AFTER:  delivery/setup/service all read from DB with old field name fallback
-// FIX-010 (Jun 15 2026): tray_quantity read from DB for custom items
-//   BEFORE: tray_quantity undefined → 'UNDEFINED× FULL TRAY' label in quote builder
-//   AFTER:  tray_quantity explicitly read as item.tray_quantity || 1
-// FIX-011 (Jun 15 2026): customer feedback loaded from review rounds into quote builder
-//   BEFORE: admin had to cross-reference ReviewRoundsPanel to see customer comments per dish
-//   AFTER:  amber banners per dish with customer comment from latest submitted review round
-// FIX-025 (Jun 15 2026): removed auto per_person switch for wedding/engagement events
-//   BEFORE: loadAll() auto-switched catering type to per_person for wedding events
-//   AFTER:  always defaults to tray; admin switches manually if needed
-
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'

@@ -1,11 +1,3 @@
-// src/app/api/quotes/route.ts
-// FIX-003 (Jun 15 2026): piece_count now saved in tray_items INSERT
-//   BEFORE: piece_count was missing from INSERT — always NULL in DB
-//   AFTER:  piece_count saved correctly; fixes WAS column in ReviewRoundsPanel
-// FIX-005 (Jun 15 2026): delivery/setup/service fee fields added to INSERT
-//   BEFORE: only subtotal/tax/total saved; fee columns missing causing fees to reset on reload
-//   AFTER:  all fee fields saved with both old and new field names for backwards compat
-
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 

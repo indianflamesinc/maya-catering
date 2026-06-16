@@ -1,14 +1,5 @@
 'use client'
 // src/app/review/[token]/deposit/page.tsx
-// FIX-014 (Jun 15 2026): Deposit choice page for customer after confirming quote
-//   NEW FILE — did not exist before
-//   Shows 3 payment options: Stripe (card), Zelle, Check
-//   Stripe → calls deposit-intent API → redirects to Stripe checkout
-//   Zelle/Check → calls deposit-intent API → shows payment instructions + notifies admin
-//   Reference format: '{FirstName} {EventDate}' for easy payment matching
-//   Zelle: indianflamesinc@gmail.com | Check: Indian Flames Inc, 33 Tuttle St, Wakefield MA
-
-// src/app/review/[token]/deposit/page.tsx
 // FIX-014 (Jun 15 2026): Deposit choice page — Stripe / Zelle / Check
 // Customer lands here after clicking "Confirm & Arrange Deposit"
 

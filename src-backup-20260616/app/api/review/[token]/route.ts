@@ -1,17 +1,3 @@
-// src/app/api/review/[token]/route.ts
-// FIX-012 (Jun 15 2026): getCorrectQty() reads correct field per pricing_type
-//   BEFORE: per_gallon/per_portion not handled → fell to tray_quantity=1
-//   AFTER:  all pricing types handled; piece_count used for per_piece/per_gallon/per_portion
-// FIX-029 (Jun 15 2026): notes_to_customer included in snapshot map
-//   BEFORE: field missing from snapshot — notes showed in email but NOT on review page URL
-//   AFTER:  notes_to_customer mapped from DB and returned in snapshot
-// FIX-031 (Jun 15 2026): graceful status handling replaces 410 errors
-//   BEFORE: submitted/expired tokens returned 410 error → customer saw 'Link Unavailable'
-//   AFTER:  each status returns descriptive data; review page renders appropriate state:
-//           pending_maya → 'feedback received'; accepted → permanent order view; expired → 'new link sent'
-// FIX-032 (Jun 15 2026): thread[] and admin_reply loaded from snapshot for Round 2+
-//   BEFORE: no thread data in snapshot — conversation history invisible to customer
-//   AFTER:  thread[] (history) and admin_reply (latest) read from snapshot/DB and returned
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 

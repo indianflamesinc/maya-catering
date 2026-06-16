@@ -1,14 +1,4 @@
 'use client'
-// src/app/admin/enquiries/[id]/page.tsx
-// FIX-007 (Jun 15 2026): Labour $0 hidden in quote summary — was always showing $0.00
-//   BEFORE: Labour stat card rendered unconditionally even when labour_cents=0
-//   AFTER:  Labour card only renders when labour_cents > 0
-// FIX-016 (Jun 15 2026): 'Mark Deposit Received' button in quick action bar
-//   BEFORE: No button to advance approved→deposit_paid for Zelle/Check payments
-//   AFTER:  Button appears when enquiry.status==='approved'
-// FIX-034 (Jun 15 2026): customerPhone/customerName props passed to ReviewRoundsPanel
-//   BEFORE: WhatsApp button in panel had no phone number
-//   AFTER:  Props passed from enquiry so WhatsApp opens pre-filled
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -179,9 +169,7 @@ export default function EnquiryDetailPage() {
             <ClipboardList size={12} /> Kitchen Prep List
           </Link>
         )}
-        {/* FIX-016 (Jun 15 2026): Mark Deposit Received button
-           BEFORE: no way to advance from approved→deposit_paid without going through main advance button
-           AFTER: dedicated button in action bar when status=approved for Zelle/Check payment confirmation */}
+        {/* FIX-016: Mark Deposit Received button when status=approved (waiting for Zelle/Check) */}
         {enquiry.status === 'approved' && (
           <button onClick={advanceStatus} disabled={updating}
             className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-green-500/40 text-green-400 px-4 py-2 hover:bg-green-500/10 transition-colors flex items-center gap-2 ml-auto">

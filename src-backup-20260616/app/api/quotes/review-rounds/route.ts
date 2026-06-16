@@ -1,8 +1,3 @@
-// src/app/api/quotes/review-rounds/route.ts
-// GET — returns all quote_review_tokens for an enquiry ordered by round_number
-// Used by: ReviewRoundsPanel (admin CRM), Reply Builder (admin), Quote Builder (FIX-011 customer feedback)
-// Status values: pending | viewed | pending_maya | pending_customer | accepted | expired
-// SQL constraint updated Jun 16 2026 to include pending_maya and pending_customer
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
