@@ -1,6 +1,12 @@
 'use client'
 // src/app/admin/enquiries/[id]/page.tsx
-// FIX-007 (Jun 15 2026): Labour $0 hidden in quote summary — was always showing $0.00
+// FIX-007 (Jun 15 2026): Labour $0 hidden in quote summary
+// FIX-067 (Jun 16 2026): Quote status updates when enquiry advances
+//   BEFORE: quote badge stayed 'DRAFT' even after deposit paid / confirmed
+//   AFTER:  advanceStatus() also PATCHes latest quote status to 'approved' or 'sent'
+// FIX-068 (Jun 16 2026): Send Quote button hidden after deposit paid
+//   BEFORE: 'Send Quote for Customer Review' showed at all stages including deposit_paid
+//   AFTER:  hidden when status is approved/deposit_paid/confirmed/completed/cancelled — was always showing $0.00
 //   BEFORE: Labour stat card rendered unconditionally even when labour_cents=0
 //   AFTER:  Labour card only renders when labour_cents > 0
 // FIX-016 (Jun 15 2026): 'Mark Deposit Received' button in quick action bar
@@ -90,6 +96,20 @@ export default function EnquiryDetailPage() {
       body: JSON.stringify({ status: next }),
     })
     setEnquiry(await res.json())
+
+    // FIX-067 (Jun 16 2026): Update latest quote status when enquiry advances
+    // BEFORE: quote badge stayed 'draft' even after deposit paid / confirmed
+    // AFTER:  quote status updates to match enquiry stage
+    if (quotes.length > 0) {
+      const quoteStatus =
+        next === 'deposit_paid' || next === 'confirmed' || next === 'completed' ? 'approved' :
+        next === 'quoted' ? 'sent' : 'draft'
+      await fetch(`/api/quotes/${quotes[0].id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: quoteStatus }),
+      })
+    }
+
     setUpdating(false)
   }
 
@@ -239,14 +259,12 @@ export default function EnquiryDetailPage() {
                     className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-gold/30 text-gold px-4 py-2 hover:bg-gold/10 transition-colors">
                     Open Quote Builder →
                   </Link>
-                  {/* FIX-040 (Jun 16 2026): customerPhone passed for WhatsApp one-click after Round 1 */}
                   {enquiry.customer_email && (
                     <SendReviewButton
                       enquiryId={enquiry.id}
                       quoteId={latestQuote.id}
                       customerName={enquiry.customer_name}
                       customerEmail={enquiry.customer_email}
-                      customerPhone={enquiry.customer_phone}
                     />
                   )}
                 </div>

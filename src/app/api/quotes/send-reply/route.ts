@@ -4,6 +4,14 @@
 // FIX-038 (Jun 16 2026): Correct enquiry_id used for redirect
 // FIX-048 (Jun 16 2026): Email sign-off updated — Maya Team, phone, website
 // FIX-055 (Jun 16 2026): Notes column added to Round 2+ email dish table
+// FIX-065 (Jun 16 2026): Overall reply banner investigation
+//   BEFORE: 'Message from Maya Team' banner missing in Round 3 email
+//   ROOT CAUSE: admin_overall_reply passed correctly but template condition
+//               may have whitespace/empty string issue
+//   FIX: trim() check instead of falsy check
+// FIX-066 (Jun 16 2026): firstName fix for multi-word names
+//   BEFORE: 'Test Customer 001'.split(' ')[0] → 'Test' → 'Dear Test,'
+//   AFTER:  names with >2 parts use full name → 'Dear Test Customer 001,'
 //   BEFORE: DISH|TYPE|QTY|UNIT PRICE|TOTAL — no Notes column
 //   AFTER:  DISH|TYPE|QTY|UNIT PRICE|TOTAL|NOTES — matches Round 1 email format
 // FIX-054 (Jun 16 2026): thread[] includes ALL rounds — removed slice(0,-1) that wiped history
@@ -350,7 +358,11 @@ async function sendReplyEmail({
     auth: { user: process.env.GMAIL_USER!, pass: process.env.GMAIL_APP_PASSWORD! },
   })
 
-  const firstName = customerName.split(' ')[0]
+  // FIX-066 (Jun 16 2026): use full name in greeting if name has more than 2 parts
+  // BEFORE: split(' ')[0] → "Test Customer 001" became "Dear Test," — wrong
+  // AFTER:  if name has >2 words use full name, else use first word
+  const nameParts = customerName.trim().split(' ')
+  const firstName = nameParts.length <= 2 ? nameParts[0] : customerName
 
   let dishRowsHtml = ''
   for (let i = 0; i < (snapshot.tray_items || []).length; i++) {
@@ -427,7 +439,7 @@ async function sendReplyEmail({
       Thank you for your feedback! We've reviewed your comments and updated your quote below.
       Please review Round ${roundNumber} and let us know if everything looks good.
     </p>
-    ${adminOverallReply ? `
+    ${adminOverallReply?.trim() ? `
     <div style="background:#e8f5e9;border-left:4px solid #2e7d32;padding:14px 18px;margin-bottom:24px;border-radius:0 6px 6px 0">
       <div style="font-size:11px;color:#2e7d32;font-weight:bold;margin-bottom:4px">📝 Message from Maya Team:</div>
       <p style="color:#1a5c1a;font-size:13px;margin:0;line-height:1.6">${adminOverallReply}</p>
