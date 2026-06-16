@@ -13,7 +13,7 @@
 //   ALSO:   ReviewRoundsPanel email link updated to include token param
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Send, Plus, Trash2, Search } from 'lucide-react'
 
@@ -79,10 +79,11 @@ const numInp = "bg-[#0a1428] border border-gold/20 text-cream font-jost text-[13
 
 export default function ReplyBuilderPage() {
   const { id } = useParams<{ id: string }>()
-  // FIX-042: also read token from query string (set by email link)
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
-  const tokenFromEmail = searchParams?.get('token') || null
   const router = useRouter()
+  // FIX-042: token from email stored in state, read inside useEffect
+  // BEFORE: read window.location.search at component level — null during SSR
+  // AFTER:  read inside useEffect where window is always available
+  const [tokenFromEmail, setTokenFromEmail] = useState<string | null>(null)
 
   const [enquiry, setEnquiry] = useState<any>(null)
   const [latestRound, setLatestRound] = useState<any>(null)
@@ -101,9 +102,15 @@ export default function ReplyBuilderPage() {
   const [masterMenuMap, setMasterMenuMap] = useState<Record<string, any>>({})
   const [search, setSearch] = useState('')
 
-  useEffect(() => { loadAll() }, [id])
+  useEffect(() => {
+    // FIX-042: read token from URL query string inside useEffect (window is available here)
+    const params = new URLSearchParams(window.location.search)
+    const t = params.get('token') || null
+    setTokenFromEmail(t)
+    loadAll(t)
+  }, [id])
 
-  async function loadAll() {
+  async function loadAll(emailToken?: string | null) {
     try {
       const eRes = await fetch(`/api/enquiries/${id}`)
       const eData = await eRes.json()
@@ -140,9 +147,10 @@ export default function ReplyBuilderPage() {
       let latest: any = null
       let rounds: any[] = []
 
-      if (tokenFromEmail) {
+      // FIX-042: use emailToken param (passed from useEffect where window is available)
+      if (emailToken) {
         // Load directly from token — most reliable path (email link)
-        const tRes = await fetch(`/api/review/${tokenFromEmail}`)
+        const tRes = await fetch(`/api/review/${emailToken}`)
         const tData = await tRes.json()
         if (tData && !tData.error && (tData.status === 'pending_maya' || tData.status === 'submitted')) {
           // Build a round object from the token data
