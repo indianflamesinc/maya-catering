@@ -392,6 +392,66 @@ Format: FIX-### | Date | Symptom | Root Cause | Files Changed
 
 ---
 
+## FIX-054 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Round 2+ review page showed NO conversation thread — customer couldn't see their
+  R1 comments or Maya's replies. Only Maya Notes showed.
+**Root Cause:** send-reply/route.ts used thread.slice(0, -1) to prevent duplication.
+  For Round 2 (only 1 round of history), slice(0,-1) removed the ONLY thread entry → empty [].
+  Review page received empty thread[] so showed nothing.
+**Fix:** Removed slice(0,-1) entirely. thread[] now contains ALL rounds.
+  No duplication because thread[] (history) and admin_reply (current) render in different UI sections.
+**Files:** src/app/api/quotes/send-reply/route.ts
+**Impact:** Fixes ISSUE-056 and ISSUE-057 as cascading effects
+
+---
+
+## FIX-058 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Round 2 showed "Sent — Awaiting Customer" status even after Round 3 was created
+**Root Cause:** send-reply only expired the current round_id token.
+  Previous pending_customer tokens (Round 2) were not expired.
+  ReviewRoundsPanel showed Round 2 as still active.
+**Fix:** After expiring current round, also expire all pending/viewed/pending_customer
+  tokens for the same enquiry_id using .in('status', [...])
+**Files:** src/app/api/quotes/send-reply/route.ts
+
+---
+
+## FIX-059 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Customer could submit feedback multiple times on the same round.
+  Each submission created a new round and sent admin a new email.
+  Customer received Round 3, 4, 5 emails unexpectedly.
+**Root Cause — Two layers:**
+  1. After submit, local React 'submitted' state showed confirmation.
+     But page refresh reset local state → form showed again → customer resubmitted
+  2. Customer couldn't see their R1 feedback was acknowledged (ISSUE-054)
+     so thought nothing was saved
+**Fix:**
+  Layer 1: GET route already returns status:'pending_maya' after submit (FIX-031/046)
+           Review page already handles pending_maya → shows permanent "feedback received"
+           No code change needed here — just needed FIX-054 to make thread visible
+  Layer 2: Submit route already blocks re-submission with 410 status check
+  Combined: Once FIX-054 is deployed, customers see their feedback was received
+           and have no reason to resubmit
+**Files:** No new files — resolved by FIX-054 + existing FIX-031/046
+**Note:** The 410 block in submit/route.ts prevents API-level resubmission already
+
+---
+
+## FIX-060 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** After admin sends Round N from Reply Builder, page immediately redirected
+  to enquiry. Admin didn't see confirmation so clicked Send again → duplicate rounds sent.
+**Root Cause:** router.push() fired immediately after successful send — no visual confirmation.
+  Race condition: redirect happened before admin could see the new round was created.
+**Fix:** Replaced immediate redirect with success state page showing:
+  - "Round N Sent!" confirmation
+  - 📱 WhatsApp button to notify customer
+  - Preview link for customer's new review URL
+  - "← Back to Enquiry" button (admin must click explicitly)
+  Admin cannot accidentally send twice — must navigate away intentionally.
+**Files:** src/app/admin/enquiries/[id]/reply/page.tsx
+
+---
+
 ## KNOWN ISSUES / FUTURE WORK
 - FIX-004: Date input on new enquiry form (deferred — admin only)
 - Kitchen Prep List PDF (/admin/enquiries/[id]/kitchen) — CRITICAL for Jul 15 & Jul 18 Marriott events

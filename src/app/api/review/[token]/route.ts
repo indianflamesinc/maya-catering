@@ -1,5 +1,10 @@
 // src/app/api/review/[token]/route.ts
 // FIX-012 (Jun 15 2026): getCorrectQty() reads correct field per pricing_type
+// FIX-059 (Jun 16 2026): Prevent customer resubmission via GET route
+//   BEFORE: pending_maya status returned data but review page local state reset on refresh
+//   AFTER:  pending_maya explicitly returned with status field → review page shows
+//           permanent "Your feedback was received" message (not the form)
+//   NOTE: submit route also blocks re-submission with 410 — this is the UI layer protection
 //   BEFORE: per_gallon/per_portion not handled → fell to tray_quantity=1
 //   AFTER:  all pricing types handled; piece_count used for per_piece/per_gallon/per_portion
 // FIX-029 (Jun 15 2026): notes_to_customer included in snapshot map

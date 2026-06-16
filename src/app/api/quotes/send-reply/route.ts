@@ -1,7 +1,13 @@
 // src/app/api/quotes/send-reply/route.ts
-// FIX-036 (Jun 16 2026): Thread history now correctly built before expiring old round
+// FIX-036 (Jun 16 2026): Thread history built before expiring old round
 // FIX-037 (Jun 16 2026): Current round admin_replies included in thread snapshot
-// FIX-038 (Jun 16 2026): Correct enquiry_id used for redirect (from token, not hardcoded)
+// FIX-038 (Jun 16 2026): Correct enquiry_id used for redirect
+// FIX-054 (Jun 16 2026): thread[] includes ALL rounds — removed slice(0,-1) that wiped history
+//   BEFORE: thread.slice(0,-1) removed last entry → Round 2 showed empty thread []
+//   AFTER:  thread = complete history; admin_reply handles current round separately
+// FIX-058 (Jun 16 2026): Expire ALL pending tokens when new round created
+//   BEFORE: only expired current round_id → Round 2 stayed 'pending_customer' after Round 3 sent
+//   AFTER:  expire all pending/viewed/pending_customer tokens for enquiry
 // 
 // Bug summary fixed:
 // - Thread was empty [] because admin_replies saved AFTER snapshot built
@@ -125,7 +131,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. Now save admin_replies to current round and expire it
+    // 4. Save admin_replies to current round and expire it
     await supabase
       .from('quote_review_tokens')
       .update({
@@ -134,6 +140,18 @@ export async function POST(req: NextRequest) {
         status: 'expired',
       })
       .eq('id', round_id)
+
+    // FIX-058 (Jun 16 2026): Expire ALL pending/pending_customer tokens for this enquiry
+    // BEFORE: only expired the current round_id token
+    //         Previous pending_customer tokens (e.g. Round 2) stayed as 'pending_customer'
+    //         ReviewRoundsPanel showed Round 2 as "Sent — Awaiting Customer" even after Round 3 created
+    // AFTER:  expire all pending/viewed/pending_customer tokens for this enquiry
+    //         Ensures only the NEW token just created is active
+    await supabase
+      .from('quote_review_tokens')
+      .update({ status: 'expired' })
+      .eq('enquiry_id', enquiry_id)
+      .in('status', ['pending', 'viewed', 'pending_customer'])
 
     // 5. Load enquiry
     const { data: enquiry, error: eErr } = await supabase
@@ -229,10 +247,14 @@ export async function POST(req: NextRequest) {
           // FIX-037: admin_reply is the CURRENT round reply shown highlighted
           // Only set if admin replied to THIS item this round
           admin_reply: currentAdminReply,
-          // FIX-036: thread contains ALL previous rounds (not current)
-          // Current round's reply is shown via admin_reply field above
-          // This prevents duplication — thread = history, admin_reply = latest
-          thread: thread.slice(0, -1), // all except current round (which is shown as admin_reply)
+          // FIX-054 (Jun 16 2026): include ALL rounds in thread[] — do NOT slice
+          // BEFORE: thread.slice(0, -1) removed the last entry to prevent duplication
+          //         BUT for Round 2 (only 1 round of history), slice removes the ONLY entry → empty []
+          //         Customer saw NO conversation history on Round 2+ review page
+          // AFTER:  thread[] = complete history including current round
+          //         review page renders thread[] for history, admin_reply for highlighted latest reply
+          //         No duplication because they're rendered in different UI sections
+          thread: thread, // FIX-054: ALL rounds, no slice
           customer_comments: '',
         }
       }),

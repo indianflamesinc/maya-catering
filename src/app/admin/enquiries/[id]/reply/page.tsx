@@ -1,6 +1,10 @@
 'use client'
 // src/app/admin/enquiries/[id]/reply/page.tsx
 // FIX-038 (Jun 16 2026): Redirect uses enquiry_id from API response not from URL
+// FIX-060 (Jun 16 2026): Success state shown after send instead of immediate redirect
+//   BEFORE: router.push() fired immediately → admin saw no confirmation → clicked Send again
+//   AFTER:  success page shown with round number, WhatsApp button, preview link, back button
+//           Admin must explicitly click "Back to Enquiry" — prevents accidental double-send
 //   BEFORE: used URL param [id] for redirect — wrong if token belongs to different enquiry
 //   AFTER:  data.enquiry_id from send-reply API response used for redirect
 // FIX-039 (Jun 16 2026): Price auto-updates when tray size changes
@@ -97,6 +101,12 @@ export default function ReplyBuilderPage() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [whatsAppUrl, setWhatsAppUrl] = useState<string | null>(null) // FIX-045
+  // FIX-060 (Jun 16 2026): show success state instead of immediate redirect
+  // BEFORE: router.push() immediately after send — admin didn't see confirmation
+  //         If redirect was slow, admin clicked Send again → duplicate rounds
+  // AFTER:  show success banner with WhatsApp button and "Back to Enquiry" link
+  //         Admin clearly sees "Round N sent successfully" before navigating away
+  const [sentSuccess, setSentSuccess] = useState<{ roundNumber: number; reviewUrl: string } | null>(null)
   const [error, setError] = useState('')
   const [showPicker, setShowPicker] = useState(false)
   const [masterMenu, setMasterMenu] = useState<any[]>([])
@@ -369,6 +379,42 @@ export default function ReplyBuilderPage() {
     acc[item.category].push(item)
     return acc
   }, {})
+
+  // FIX-060: Success state — shown after send, prevents double-send
+  if (sentSuccess) {
+    const targetEnquiryId = id
+    return (
+      <div className="min-h-screen bg-ink flex items-center justify-center">
+        <div className="max-w-lg w-full mx-8 flex flex-col gap-6">
+          <div className="border border-green-500/30 bg-green-500/10 rounded-lg p-8 text-center">
+            <div className="text-5xl mb-4">✅</div>
+            <h2 className="font-italiana text-[32px] text-cream mb-2">
+              Round {sentSuccess.roundNumber} Sent!
+            </h2>
+            <p className="text-cream/60 text-[13px] mb-6">
+              Customer has been emailed their updated quote with your replies.
+            </p>
+            {whatsAppUrl && (
+              <a href={whatsAppUrl} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-green-600 text-white font-cinzel text-[8px] tracking-[0.2em] uppercase px-6 py-3 hover:bg-green-500 transition-colors mb-4 rounded">
+                📱 Send WhatsApp to Customer
+              </a>
+            )}
+            <div className="mt-2">
+              <a href={sentSuccess.reviewUrl} target="_blank" rel="noopener noreferrer"
+                className="text-gold/60 text-[12px] hover:text-gold transition-colors block mb-4">
+                👁 Preview customer Round {sentSuccess.roundNumber} link ↗
+              </a>
+              <a href={`/admin/enquiries/${targetEnquiryId}`}
+                className="font-cinzel text-[8px] tracking-[0.2em] uppercase border border-gold/30 text-gold px-6 py-3 hover:bg-gold/10 transition-colors inline-block">
+                ← Back to Enquiry
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-ink flex items-center justify-center">
