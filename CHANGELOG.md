@@ -336,6 +336,36 @@ Format: FIX-### | Date | Symptom | Root Cause | Files Changed
 
 ---
 
+## FIX-043 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Customer comment showing twice in Reply Builder (plain text + highlighted yellow box)
+**Root Cause:** thread[] array included current round's customer comment AND it was also shown
+  separately as a highlighted box — two different render paths showing same data
+**Fix:** Added guard: only show highlighted box if comment is NOT already in thread[]
+  thread[] = previous rounds history only
+  Highlighted box = current round only (no overlap)
+**Files:** src/app/admin/enquiries/[id]/reply/page.tsx
+
+---
+
+## FIX-044 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** Cannot enter 1.75 as tray quantity in Reply Builder — jumps from 1.5 to 2.0
+**Root Cause:** tray_quantity input step was 0.5 — only allowed multiples of 0.5
+**Fix:** Changed step from 0.5 to 0.25 — now allows 1.25, 1.5, 1.75, 2.0 etc.
+**Files:** src/app/admin/enquiries/[id]/reply/page.tsx
+
+---
+
+## FIX-045 | Jun 16 2026 | DEPLOYED ✅
+**Symptom:** WhatsApp not opening after sending Round N from Reply Builder
+**Root Cause:** window.open() called after async await — browsers block popups from async callbacks
+  (security policy: popups must originate from direct user interaction, not async code)
+**Fix:** Store WhatsApp URL in state after send completes.
+  Show "📱 WhatsApp" button in header that user clicks directly — no popup blocker issue.
+  Button appears only after successful send.
+**Files:** src/app/admin/enquiries/[id]/reply/page.tsx
+
+---
+
 ## KNOWN ISSUES / FUTURE WORK
 - FIX-004: Date input on new enquiry form (deferred — admin only)
 - Kitchen Prep List PDF (/admin/enquiries/[id]/kitchen) — CRITICAL for Jul 15 & Jul 18 Marriott events

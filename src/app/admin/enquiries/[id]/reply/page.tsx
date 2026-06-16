@@ -96,6 +96,7 @@ export default function ReplyBuilderPage() {
   const [discountValue, setDiscountValue] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [whatsAppUrl, setWhatsAppUrl] = useState<string | null>(null) // FIX-045
   const [error, setError] = useState('')
   const [showPicker, setShowPicker] = useState(false)
   const [masterMenu, setMasterMenu] = useState<any[]>([])
@@ -344,9 +345,13 @@ export default function ReplyBuilderPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to send')
 
+      // FIX-045 (Jun 16 2026): WhatsApp link not opening after async send
+      // BEFORE: window.open() after await — browsers block popups from async callbacks
+      // AFTER:  store WA URL in state → show clickable button after send completes
       if (data.whatsapp_message && enquiry?.customer_phone) {
         const phone = enquiry.customer_phone.replace(/\D/g, '')
-        window.open(`https://wa.me/1${phone}?text=${encodeURIComponent(data.whatsapp_message)}`, '_blank')
+        const waUrl = `https://wa.me/1${phone}?text=${encodeURIComponent(data.whatsapp_message)}`
+        setWhatsAppUrl(waUrl)
       }
 
       // FIX-038: use enquiry_id from API response (guaranteed correct)
@@ -399,6 +404,13 @@ export default function ReplyBuilderPage() {
           className="font-cinzel text-[8px] tracking-[0.22em] uppercase bg-gold text-ink px-6 py-3 hover:bg-gold-hi transition-colors disabled:opacity-40 flex items-center gap-2">
           <Send size={14} />{sending ? 'Sending...' : `Send Round ${(latestRound?.round_number || 1) + 1}`}
         </button>
+        {/* FIX-045: WhatsApp button appears after send completes — avoids popup blocker */}
+        {whatsAppUrl && (
+          <a href={whatsAppUrl} target="_blank" rel="noopener noreferrer"
+            className="font-cinzel text-[8px] tracking-[0.22em] uppercase bg-green-600 text-white px-4 py-3 hover:bg-green-500 transition-colors flex items-center gap-2">
+            📱 WhatsApp
+          </a>
+        )}
       </div>
 
       {error && <div className="mx-8 mt-4 border border-red-500/40 bg-red-500/10 px-5 py-3 text-red-400 text-[13px]">{error}</div>}
@@ -483,7 +495,8 @@ export default function ReplyBuilderPage() {
                         )}
                         {item.pricing_type === 'tray' && item.tray_size === 'custom' && (
                           <div className="flex items-center gap-1 mt-1">
-                            <input type="number" min="0.5" step="0.5" value={item.tray_quantity}
+                            {/* FIX-044 (Jun 16 2026): step=0.25 allows 1.75 — was 0.5 so 1.75 was skipped */}
+                          <input type="number" min="0.5" step="0.25" value={item.tray_quantity}
                               onChange={e => updateItem(item.id, { tray_quantity: parseFloat(e.target.value) || 1 })}
                               className={numInp} />
                             <span className="text-cream/30 text-[10px]">×</span>
@@ -524,6 +537,10 @@ export default function ReplyBuilderPage() {
                         <span className="text-cream/50 text-[12px] italic">{item.notes_to_customer}</span>
                       </div>
                     )}
+                    {/* FIX-043 (Jun 16 2026): thread[] contains PREVIOUS rounds only
+                         Current round customer comment shown separately as highlighted box
+                         BEFORE: thread included current round → showed twice
+                         AFTER:  thread = history only; current round shown once highlighted */}
                     {item.thread.map((t, ti) => (
                       <div key={ti}>
                         <div className="flex items-start gap-2">
@@ -538,7 +555,8 @@ export default function ReplyBuilderPage() {
                         )}
                       </div>
                     ))}
-                    {item.customer_comment && (
+                    {/* Current round customer comment — shown highlighted, separate from thread history */}
+                    {item.customer_comment && !item.thread.some((t: any) => t.customer_comment === item.customer_comment) && (
                       <div className="flex items-start gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded px-3 py-2 mt-1">
                         <span className="text-[9px] font-cinzel tracking-wider text-yellow-400/80 uppercase w-24 flex-shrink-0 mt-0.5">R{latestRound?.round_number} Customer</span>
                         <span className="text-yellow-200/90 text-[12px] font-medium">{item.customer_comment}</span>
