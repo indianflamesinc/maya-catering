@@ -239,8 +239,8 @@ export default function EnquiryDetailPage() {
                     className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-gold/30 text-gold px-4 py-2 hover:bg-gold/10 transition-colors">
                     Open Quote Builder →
                   </Link>
+                  {/* FIX-040 (Jun 16 2026): customerPhone passed for WhatsApp one-click after Round 1 */}
                   {enquiry.customer_email && (
-                    {/* FIX-040 (Jun 16 2026): customerPhone passed for WhatsApp one-click after Round 1 */}
                     <SendReviewButton
                       enquiryId={enquiry.id}
                       quoteId={latestQuote.id}
