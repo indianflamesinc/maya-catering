@@ -88,6 +88,45 @@ function getQtyDisplay(item: DishItem): string {
 
 const numInp = "bg-[#0a1428] border border-gold/20 text-cream font-jost text-[13px] outline-none px-2 py-1.5 focus:border-gold transition-colors w-full text-right"
 
+// FIX-073 v5 (Jun 17 2026): TrayQtyInput — raw string state prevents mid-type resets
+// e.g. typing "2.75": "2" → "2." → "2.7" → "2.75" all work without snapping back
+function TrayQtyInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [raw, setRaw] = useState(String(value))
+  useEffect(() => { setRaw(String(value)) }, [value])
+  return (
+    <div className="flex items-center gap-1 mt-1">
+      <input
+        type="text"
+        inputMode="decimal"
+        value={raw}
+        placeholder="e.g. 1.75"
+        onChange={e => {
+          const str = e.target.value
+          // Allow typing in progress: digits, single dot, partial decimals
+          if (/^\d*\.?\d*$/.test(str) || str === '') {
+            setRaw(str)
+            const n = parseFloat(str)
+            if (!isNaN(n) && n > 0) onChange(n)
+          }
+        }}
+        onBlur={() => {
+          const n = parseFloat(raw)
+          if (!isNaN(n) && n > 0) {
+            setRaw(String(n))
+            onChange(n)
+          } else {
+            setRaw('1')
+            onChange(1)
+          }
+        }}
+        style={{ width: 80 }}
+        className="bg-[#0a1428] border border-gold/30 text-cream font-jost text-[13px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm text-right"
+      />
+      <span className="text-cream/40 text-[10px]">×</span>
+    </div>
+  )
+}
+
 export default function ReplyBuilderPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -547,24 +586,14 @@ export default function ReplyBuilderPage() {
                           </div>
                         )}
                         {item.pricing_type === 'tray' && item.tray_size === 'custom' && (
-                          <div className="flex items-center gap-1 mt-1">
-                            {/* FIX-073 final v4 (Jun 17 2026): Free text input — type any value
-                                e.g. 1, 1.5, 1.75, 2, 2.75, 5, 7.5, 10, 15
-                                Price auto-recalculates on every keystroke via updateItem → calcItemTotal */}
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={item.tray_quantity ?? 1}
-                              onChange={e => {
-                                const v = parseFloat(e.target.value)
-                                if (!isNaN(v) && v > 0) updateItem(item.id, { tray_quantity: v })
-                              }}
-                              className={numInp}
-                              style={{ width: 80 }}
-                              placeholder="e.g. 1.75"
-                            />
-                            <span className="text-cream/40 text-[10px]">×</span>
-                          </div>
+                          /* FIX-073 final v5 (Jun 17 2026): TrayQtyInput component
+                             Uses local raw string state so "2." doesn't reset to "2" mid-type.
+                             Only calls updateItem on blur OR when value is a valid number.
+                             Allows: 1, 1.5, 1.75, 2, 2.5, 2.75, 5, 7.5, 10, 15 etc */
+                          <TrayQtyInput
+                            value={item.tray_quantity ?? 1}
+                            onChange={v => updateItem(item.id, { tray_quantity: v })}
+                          />
                         )}
                       </div>
 
