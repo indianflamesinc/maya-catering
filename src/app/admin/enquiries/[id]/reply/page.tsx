@@ -548,18 +548,44 @@ export default function ReplyBuilderPage() {
                         )}
                         {item.pricing_type === 'tray' && item.tray_size === 'custom' && (
                           <div className="flex items-center gap-1 mt-1">
-                            {/* FIX-073 (Jun 16 2026): dropdown not spinner — only valid Maya multiples
-                                BEFORE: <input type=number step=0.25> allowed 1.25, 1.375 etc
-                                AFTER:  <select> with 1×, 1.5×, 1.75×, 2× only */}
+                            {/* FIX-073 final (Jun 16 2026): preset dropdown + free-type input
+                                Valid Maya multiples: 1, 1.5, 1.75, 2, 2.5, 2.75, 3, 4, 5, 7.5, 10
+                                Plus "Custom" option reveals free number input for any value
+                                BEFORE: select with only 4 options, no 1.75/2.75/large counts
+                                AFTER:  all standard sizes as dropdown, custom for 6, 8, 12 etc */}
                             <select
-                              value={item.tray_quantity}
-                              onChange={e => updateItem(item.id, { tray_quantity: parseFloat(e.target.value) })}
+                              value={[1,1.5,1.75,2,2.5,2.75,3,4,5,7.5,10].includes(item.tray_quantity) ? item.tray_quantity : 'custom'}
+                              onChange={e => {
+                                if (e.target.value !== 'custom') {
+                                  updateItem(item.id, { tray_quantity: parseFloat(e.target.value) })
+                                }
+                              }}
                               className={numInp + ' cursor-pointer'}>
                               <option value={1}>1×</option>
                               <option value={1.5}>1.5×</option>
                               <option value={1.75}>1.75×</option>
                               <option value={2}>2×</option>
+                              <option value={2.5}>2.5×</option>
+                              <option value={2.75}>2.75×</option>
+                              <option value={3}>3×</option>
+                              <option value={4}>4×</option>
+                              <option value={5}>5×</option>
+                              <option value={7.5}>7.5×</option>
+                              <option value={10}>10×</option>
+                              <option value="custom">Custom...</option>
                             </select>
+                            {![1,1.5,1.75,2,2.5,2.75,3,4,5,7.5,10].includes(item.tray_quantity) && (
+                              <input
+                                type="number"
+                                min="0.5"
+                                step="0.25"
+                                value={item.tray_quantity}
+                                onChange={e => updateItem(item.id, { tray_quantity: parseFloat(e.target.value) || 1 })}
+                                className={numInp}
+                                style={{ width: 65 }}
+                                placeholder="e.g. 6"
+                              />
+                            )}
                             <span className="text-cream/30 text-[10px]">×</span>
                           </div>
                         )}

@@ -35,7 +35,7 @@
 ## FIX-073 | Jun 16 2026 | Tray multiplier shows 1.25× spinner in Reply Builder
 **Symptom:** Custom tray multiplier in Reply Builder shows a number input (allows 1.25, 1.375 etc.) instead of the dropdown (1×, 1.5×, 1.75×, 2×).
 **Root Cause:** FIX-052 intended to add dropdown but the `<input type="number" step="0.25">` was never replaced with `<select>`.
-**Fix:** Replaced number input with `<select>` containing valid Maya tray multiples: 1×, 1.5×, 1.75×, 2×.
+**Fix:** Hybrid dropdown + free-type. Dropdown has all standard Maya multiples: 1×, 1.5×, 1.75×, 2×, 2.5×, 2.75×, 3×, 4×, 5×, 7.5×, 10×. Selecting "Custom..." reveals a free number input for any other value (6, 8, 12 etc).
 **File:** `src/app/admin/enquiries/[id]/reply/page.tsx`
 
 ---
