@@ -289,7 +289,16 @@ export default function EnquiryDetailPage() {
                     />
                   )}
                 </div>
-                <ReviewRoundsPanel enquiryId={enquiry.id} quoteId={latestQuote.id} onRoundUpdate={load} />
+                {/* FIX-076b (Jun 17 2026): pass customerPhone+customerName to ReviewRoundsPanel
+                     BEFORE: props missing → getWhatsAppUrl() returns null → WhatsApp button never shows
+                     AFTER:  props passed → WhatsApp <a href> renders on every round row */}
+                <ReviewRoundsPanel
+                  enquiryId={enquiry.id}
+                  quoteId={latestQuote.id}
+                  onRoundUpdate={load}
+                  customerPhone={enquiry.customer_phone}
+                  customerName={enquiry.customer_name}
+                />
               </div>
             )}
 

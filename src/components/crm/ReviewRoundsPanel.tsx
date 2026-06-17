@@ -37,6 +37,7 @@ interface Props {
 
 // FIX-033: updated status config with new values
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
+  sent:             { label: 'Sent — Awaiting Customer',    color: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300',  dot: 'bg-yellow-400' },
   pending:          { label: 'Sent — Awaiting Customer',    color: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300',  dot: 'bg-yellow-400' },
   pending_customer: { label: 'Sent — Awaiting Customer',    color: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300',  dot: 'bg-yellow-400' },
   viewed:           { label: 'Customer Opened Link',         color: 'bg-blue-500/10 border-blue-500/30 text-blue-300',        dot: 'bg-blue-400' },
@@ -227,7 +228,8 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerP
               )}
 
               {/* Awaiting customer */}
-              {isLatest && (round.status === 'pending' || round.status === 'pending_customer' || round.status === 'viewed') && (
+              {/* FIX-076c: added 'sent' status — Reply Builder sets this after Round 2+ */}
+              {isLatest && (round.status === 'pending' || round.status === 'pending_customer' || round.status === 'sent' || round.status === 'viewed') && (
                 <div className="px-4 py-3 bg-yellow-500/5 text-[12px] text-yellow-300/60 flex items-center justify-between">
                   <span>⏳ {round.viewed_at ? 'Customer opened link — awaiting their response.' : 'Waiting for customer to open review link.'}</span>
                   <div className="flex gap-2">
