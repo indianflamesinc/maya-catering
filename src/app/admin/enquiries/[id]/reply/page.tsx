@@ -548,32 +548,12 @@ export default function ReplyBuilderPage() {
                         )}
                         {item.pricing_type === 'tray' && item.tray_size === 'custom' && (
                           <div className="flex items-center gap-1 mt-1">
-                            {/* FIX-073 final v3 (Jun 17 2026): Single text input + datalist suggestions
-                                - Type any value: 1, 1.5, 1.75, 2, 2.5, 2.75, 3, 5, 7.5, 10 etc
-                                - Datalist shows common options as suggestions (no click issues)
-                                - Fully editable — works for large Marriott events (10, 15 trays)
-                                BEFORE: two-box approach had z-index/click issues on fraction select
-                                AFTER:  single input, native browser suggestions, always typeable */}
-                            <datalist id={`tray-qty-${item.id}`}>
-                              <option value="1" />
-                              <option value="1.5" />
-                              <option value="1.75" />
-                              <option value="2" />
-                              <option value="2.5" />
-                              <option value="2.75" />
-                              <option value="3" />
-                              <option value="4" />
-                              <option value="5" />
-                              <option value="7.5" />
-                              <option value="10" />
-                              <option value="12" />
-                              <option value="15" />
-                            </datalist>
+                            {/* FIX-073 final v4 (Jun 17 2026): Free text input — type any value
+                                e.g. 1, 1.5, 1.75, 2, 2.75, 5, 7.5, 10, 15
+                                Price auto-recalculates on every keystroke via updateItem → calcItemTotal */}
                             <input
-                              type="number"
-                              list={`tray-qty-${item.id}`}
-                              min="0.5"
-                              step="0.25"
+                              type="text"
+                              inputMode="decimal"
                               value={item.tray_quantity ?? 1}
                               onChange={e => {
                                 const v = parseFloat(e.target.value)
@@ -581,7 +561,7 @@ export default function ReplyBuilderPage() {
                               }}
                               className={numInp}
                               style={{ width: 80 }}
-                              title="Tray multiplier (e.g. 1.5, 2, 2.75, 10)"
+                              placeholder="e.g. 1.75"
                             />
                             <span className="text-cream/40 text-[10px]">×</span>
                           </div>
