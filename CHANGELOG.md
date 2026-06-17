@@ -1,55 +1,102 @@
-# MAYA Platform — CHANGELOG
+# MAYA Platform CHANGELOG
 
-## FIX-069 | Jun 16 2026 | WhatsApp anchor link missing after quote send
-**Symptom:** After sending Round 1, the "📱 Open WhatsApp" button does not appear — only plain-text message with Copy button.
-**Root Cause:** `SendReviewButton` requires `customerPhone` prop to build wa.me URL. Prop was defined in interface but NOT passed at call site in `enquiries/[id]/page.tsx`.
-**Fix:** Added `customerPhone={enquiry.customer_phone}` to `<SendReviewButton>` call.
-**File:** `src/app/admin/enquiries/[id]/page.tsx`
-
----
-
-## FIX-070 | Jun 16 2026 | Review page greeting shows first word only
-**Symptom:** Customer review page shows "Hello, Test! 👋" instead of "Hello, Test Customer 002! 👋"
-**Root Cause:** `customer_name.split(' ')[0]` used in 3 places on review page — only picks first word.
-**Fix:** Removed `.split(' ')[0]` — now uses full `customer_name` in greeting, thank-you, and booking confirmed messages.
-**File:** `src/app/review/[token]/page.tsx`
+## FIX-083 to FIX-087 — Condiment Architecture v2 (Revised)
+**Session:** Jun 17, 2026
+**ZIP:** MAYA-CONDIMENTS-Jun17-v2.zip
+**Supersedes:** MAYA-CONDIMENTS-Jun17-v1.zip (use this one instead)
 
 ---
 
-## FIX-071 | Jun 16 2026 | Item totals show unit price on Round 2+ review page
-**Symptom:** Naan shows $4.00 (should be $80.00), Idly $2.00 (should be $160.00) on Round 2+ customer review page.
-**Root Cause:** Total calculation `unit_price × (tray_quantity ?? guest_count ?? piece_count ?? 1)` — for Round 2+ snapshots, `tray_quantity=1` (default) takes priority over `piece_count=80` via nullish coalescing, giving wrong result.
-**Fix:** Use `total_price_cents` from snapshot when > 0 (calculated correctly by `calcItemTotal()`). Fallback priority fixed to `guest_count ?? piece_count ?? tray_quantity`.
-**File:** `src/app/review/[token]/page.tsx` (2 occurrences)
+## Key design decisions in v2
+
+### Unit field — dropdown + free text
+Standard options: Oz / Gallon / Tray / Piece
+Select "Custom…" to type anything: "32 Oz", "2 Gallon", "Half Tray", "3/4 Tray", "16 Oz", etc.
+Stored as a single TEXT column — no validation constraint.
+
+### Qty — default suggestion, always overridable
+- `default_qty` in `menu_condiment_map` is a starting suggestion set by admin in menu master
+- No auto-calculation from guest count (removed — too rigid)
+- Chef/admin adjusts qty per quote or event when building the quote
+- Kitchen prep list shows exactly what was entered on the quote — no re-derivation
+
+### Condiments master list
+- Simple table: just `name` + `sort_order`
+- 17 condiments seeded including Salan and Mirchi Ka Salan
+- "Remove" soft-deletes (is_active=false) — preserves existing links
+- New condiments added here appear in every dish's dropdown instantly
 
 ---
 
-## FIX-072 | Jun 16 2026 | Maya Reply shows twice in Round 2+ email
-**Symptom:** Round 2 email shows "↳ Maya (R1): changed from 10 to 20" AND "↳ Maya Reply: changed from 10 to 20" for same dish.
-**Root Cause:** `thread[]` (FIX-037/054) already contains ALL rounds including current admin_reply as "↳ Maya (RN)". The separate `item.admin_reply` block then renders it again as "↳ Maya Reply".
-**Fix:** Removed the separate `item.admin_reply` render block — `thread[]` is the single source of truth.
-**File:** `src/app/api/quotes/send-reply/route.ts`
+## FIX-083 | Supabase migration (v2)
+**File:** `supabase/migrations/20260617_condiments_v2.sql`
+
+- Drops and recreates `condiments` + `menu_condiment_map` (clean v2 schema)
+- `condiments`: id, name, is_active, sort_order — no default_unit (unit lives on the map)
+- `menu_condiment_map`: menu_item_id, condiment_id, default_qty, default_unit (TEXT, free),
+  show_on_quote, is_mandatory, sort_order
+- `quote_tray_items` new columns (safe IF NOT EXISTS):
+  - `is_condiment BOOLEAN` — marks row as condiment child
+  - `parent_item_id UUID` — soft ref to parent dish row
+  - `condiment_map_id UUID` — traceability back to menu_condiment_map
+  - `show_on_quote BOOLEAN` — copied from map, overridable per quote
+  - `condiment_qty TEXT` — actual qty used (admin may differ from default)
+  - `condiment_unit TEXT` — actual unit used (admin may differ from default)
+- 17 condiments seeded
+
+## FIX-084 | Condiments API
+**File:** `src/app/api/condiments/route.ts`
+- GET / POST / PATCH / DELETE — standard CRUD
+
+## FIX-085 | Menu Condiment Map API
+**File:** `src/app/api/menu-condiment-map/route.ts`
+- GET ?menu_item_id=xxx — fetch all condiments for a dish
+- POST / PATCH / DELETE — manage links
+
+## FIX-086 | Menu Admin page (updated)
+**File:** `src/app/admin/menu/page.tsx`
+- Each dish row has ▸ expand button — opens Condiments panel inline
+- Condiment panel columns: Condiment name | Default Qty | Unit | Show on Quote | Required | Remove
+- Unit field: standard dropdown (Oz / Gallon / Tray / Piece) + "Custom…" reveals free-text input
+- Show on Quote: green toggle = customer sees it / grey = kitchen-only
+- Required badge: "Must" (red) = cannot remove from quote / "Opt" (grey) = optional
+- All saves are instant on change — no separate Save button
+- "🥣 Manage Condiments List" button — add/remove from master list
+
+## FIX-087 | Condiment resolver (v2)
+**File:** `src/lib/condiment-resolver.ts`
+- Reads default_qty + default_unit from menu_condiment_map
+- No calculation logic — values come straight from the DB
+- Used by quote builder when a dish is added to pre-fill condiment rows
+- Admin edits qty/unit on the quote itself
 
 ---
 
-## FIX-073 | Jun 16 2026 | Tray multiplier shows 1.25× spinner in Reply Builder
-**Symptom:** Custom tray multiplier in Reply Builder shows a number input (allows 1.25, 1.375 etc.) instead of the dropdown (1×, 1.5×, 1.75×, 2×).
-**Root Cause:** FIX-052 intended to add dropdown but the `<input type="number" step="0.25">` was never replaced with `<select>`.
-**Fix:** Hybrid dropdown + free-type. Dropdown has all standard Maya multiples: 1×, 1.5×, 1.75×, 2×, 2.5×, 2.75×, 3×, 4×, 5×, 7.5×, 10×. Selecting "Custom..." reveals a free number input for any other value (6, 8, 12 etc).
-**File:** `src/app/admin/enquiries/[id]/reply/page.tsx`
+## INSTALL
+
+### Step 1 — Run migration
+Paste `supabase/migrations/20260617_condiments_v2.sql` in Supabase SQL editor and run.
+
+### Step 2 — Copy files
+```
+src/app/api/condiments/route.ts
+src/app/api/menu-condiment-map/route.ts
+src/app/admin/menu/page.tsx
+src/lib/condiment-resolver.ts
+```
+
+### Step 3 — Set up condiments in /admin/menu
+1. Go to /admin/menu → click "🥣 Manage Condiments List" — verify 17 condiments seeded
+2. Expand any dish (click ▸) → add its condiments:
+   - Samosa: Mint Chutney (2, 32 Oz, Kitchen-only), Tamarind Chutney (2, 32 Oz, Kitchen-only)
+   - Biryani: Raita (1, Half Tray, Show on Quote)
+   - Idly: Coconut Chutney (1, 32 Oz, Kitchen-only), Sambar (1, Half Tray, Kitchen-only)
+   - Pani Puri: Mint Pani (1, 1 Gallon, Kitchen-only), Mango Pani (1, 1 Gallon, Kitchen-only)
+
+### Step 4 — Test in quote builder
+Add Samosa to a quote → Mint Chutney + Tamarind Chutney appear as child rows
+Toggle Show on Quote on one → verify customer copy shows/hides it
 
 ---
 
-## FIX-074 | Jun 16 2026 | Quote badge shows DRAFT after customer confirms
-**Symptom:** After customer confirms and deposit is paid, quote badge still shows "DRAFT" instead of "APPROVED" or "DEPOSIT PAID".
-**Root Cause:** Badge read `latestQuote.status` directly. FIX-067 updates quote status via PATCH when advancing — but at APPROVED stage (customer confirm) the quote status wasn't yet updated.
-**Fix:** Badge now derives display status from `enquiry.status` when enquiry is at approved/deposit_paid/confirmed/completed stages. Enquiry status always reflects true state.
-**File:** `src/app/admin/enquiries/[id]/page.tsx`
-
----
-
-## FIX-075 | Jun 16 2026 | "Send Quote for Customer Review" button shows at APPROVED/DEPOSIT PAID
-**Symptom:** After customer confirms and deposit is paid, the "Send Quote for Customer Review" button is still visible and clickable — could accidentally re-send a quote.
-**Root Cause:** Button was shown whenever `enquiry.customer_email` existed, with no stage check.
-**Fix:** Added stage guard — button hidden when `enquiry.status` is `approved`, `deposit_paid`, `confirmed`, `completed`, or `cancelled`.
-**File:** `src/app/admin/enquiries/[id]/page.tsx`
+## Previous: FIX-077 to FIX-082 (Kitchen Prep List initial build)
