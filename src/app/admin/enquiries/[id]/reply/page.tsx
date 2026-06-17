@@ -546,49 +546,47 @@ export default function ReplyBuilderPage() {
                             </span>
                           </div>
                         )}
-                        {item.pricing_type === 'tray' && item.tray_size === 'custom' && (
-                          <div className="flex items-center gap-1 mt-1">
-                            {/* FIX-073 final (Jun 16 2026): preset dropdown + free-type input
-                                Valid Maya multiples: 1, 1.5, 1.75, 2, 2.5, 2.75, 3, 4, 5, 7.5, 10
-                                Plus "Custom" option reveals free number input for any value
-                                BEFORE: select with only 4 options, no 1.75/2.75/large counts
-                                AFTER:  all standard sizes as dropdown, custom for 6, 8, 12 etc */}
-                            <select
-                              value={[1,1.5,1.75,2,2.5,2.75,3,4,5,7.5,10].includes(item.tray_quantity) ? item.tray_quantity : 'custom'}
-                              onChange={e => {
-                                if (e.target.value !== 'custom') {
-                                  updateItem(item.id, { tray_quantity: parseFloat(e.target.value) })
-                                }
-                              }}
-                              className={numInp + ' cursor-pointer'}>
-                              <option value={1}>1×</option>
-                              <option value={1.5}>1.5×</option>
-                              <option value={1.75}>1.75×</option>
-                              <option value={2}>2×</option>
-                              <option value={2.5}>2.5×</option>
-                              <option value={2.75}>2.75×</option>
-                              <option value={3}>3×</option>
-                              <option value={4}>4×</option>
-                              <option value={5}>5×</option>
-                              <option value={7.5}>7.5×</option>
-                              <option value={10}>10×</option>
-                              <option value="custom">Custom...</option>
-                            </select>
-                            {![1,1.5,1.75,2,2.5,2.75,3,4,5,7.5,10].includes(item.tray_quantity) && (
+                        {item.pricing_type === 'tray' && item.tray_size === 'custom' && (() => {
+                          // FIX-073 final v2 (Jun 17 2026): Two-box tray quantity input
+                          // Box 1: whole number (1, 2, 3 ... 20)
+                          // Box 2: fraction (.0, .5, .75)
+                          // Examples: 1+.5=1.5  |  5+.75=5.75  |  10+.0=10  |  2+.0=2
+                          const whole = Math.floor(item.tray_quantity ?? 1)
+                          const frac = Math.round(((item.tray_quantity ?? 1) - whole) * 100) / 100
+                          const fracStr = frac === 0.75 ? '.75' : frac === 0.5 ? '.5' : '.0'
+                          const setQty = (w: number, f: number) => {
+                            const val = Math.max(0, w) + f
+                            updateItem(item.id, { tray_quantity: val > 0 ? val : 1 })
+                          }
+                          return (
+                            <div className="flex items-center gap-1 mt-1">
+                              {/* Whole number box */}
                               <input
                                 type="number"
-                                min="0.5"
-                                step="0.25"
-                                value={item.tray_quantity}
-                                onChange={e => updateItem(item.id, { tray_quantity: parseFloat(e.target.value) || 1 })}
+                                min="0"
+                                max="99"
+                                step="1"
+                                value={whole}
+                                onChange={e => setQty(parseInt(e.target.value) || 0, frac)}
                                 className={numInp}
-                                style={{ width: 65 }}
-                                placeholder="e.g. 6"
+                                style={{ width: 55 }}
+                                title="Whole trays"
                               />
-                            )}
-                            <span className="text-cream/30 text-[10px]">×</span>
-                          </div>
-                        )}
+                              {/* Fraction selector */}
+                              <select
+                                value={fracStr}
+                                onChange={e => setQty(whole, parseFloat(e.target.value))}
+                                className={numInp + ' cursor-pointer'}
+                                style={{ width: 65 }}
+                                title="Fraction">
+                                <option value="0">.0</option>
+                                <option value="0.5">.5</option>
+                                <option value="0.75">.75</option>
+                              </select>
+                              <span className="text-cream/40 text-[10px]">×</span>
+                            </div>
+                          )
+                        })()}
                       </div>
 
                       {/* Unit price */}
