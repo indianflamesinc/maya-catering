@@ -1,5 +1,7 @@
 'use client'
 // src/components/crm/ReviewRoundsPanel.tsx
+// FIX-076 (Jun 17 2026): WhatsApp button uses <a href> not window.open — never blocked after reload
+// FIX-070b (Jun 17 2026): Full customer name in WhatsApp message — not first word only
 // FIX-034 (Jun 15 2026): "Open Reply Builder" button replaces "Send Round 2" button
 // FIX-033: new status values: pending_customer, pending_maya, accepted
 // Status flow: pending_customer → pending_maya → pending_customer → ... → accepted
@@ -79,10 +81,13 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerP
     } finally { setActionLoading(null) }
   }
 
-  function openWhatsApp(message: string) {
-    if (!customerPhone) return
+  // FIX-076 (Jun 17 2026): getWhatsAppUrl replaces openWhatsApp+window.open
+  // window.open() gets blocked by browsers after async ops / page reload
+  // <a href> is never blocked — always works
+  function getWhatsAppUrl(message: string): string | null {
+    if (!customerPhone || !message) return null
     const phone = customerPhone.replace(/\D/g, '')
-    window.open(`https://wa.me/1${phone}?text=${encodeURIComponent(message)}`, '_blank')
+    return `https://wa.me/1${phone}?text=${encodeURIComponent(message)}`
   }
 
   if (loading || rounds.length === 0) return null
@@ -126,7 +131,8 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerP
           const reviewUrl = `${BASE_URL}/review/${round.token}`
           const snapshot_data = round.sent_snapshot
           const total = snapshot_data?.total_cents ? fmt(snapshot_data.total_cents) : ''
-          const firstName = (customerName || 'Customer').split(' ')[0]
+          // FIX-070b (Jun 17 2026): use full name not first word only
+          const firstName = customerName || 'Customer'
 
           const waMessage = round.round_number === 1
             ? `Hi ${firstName}! 🙏 Your Maya Catering quote is ready!\n\nTotal: ${total}\n\nReview & confirm here:\n${reviewUrl}\n\n— Maya Catering 🍛`
@@ -148,11 +154,11 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerP
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] text-cream/30">{fmtDate(round.created_at)}</span>
-                  {customerPhone && (
-                    <button onClick={() => openWhatsApp(waMessage)}
+                  {customerPhone && getWhatsAppUrl(waMessage) && (
+                    <a href={getWhatsAppUrl(waMessage)!} target="_blank" rel="noopener noreferrer"
                       className="font-cinzel text-[7px] tracking-[0.12em] uppercase border border-green-500/30 text-green-400/70 px-2 py-0.5 hover:bg-green-500/10 transition-colors">
                       📱 WhatsApp
-                    </button>
+                    </a>
                   )}
                   <a href={reviewUrl} target="_blank" rel="noopener noreferrer"
                     className="font-cinzel text-[7px] tracking-[0.15em] uppercase text-gold/50 hover:text-gold transition-colors">
@@ -225,11 +231,11 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerP
                 <div className="px-4 py-3 bg-yellow-500/5 text-[12px] text-yellow-300/60 flex items-center justify-between">
                   <span>⏳ {round.viewed_at ? 'Customer opened link — awaiting their response.' : 'Waiting for customer to open review link.'}</span>
                   <div className="flex gap-2">
-                    {customerPhone && (
-                      <button onClick={() => openWhatsApp(waMessage)}
+                    {customerPhone && getWhatsAppUrl(waMessage) && (
+                      <a href={getWhatsAppUrl(waMessage)!} target="_blank" rel="noopener noreferrer"
                         className="font-cinzel text-[7px] tracking-[0.12em] uppercase border border-green-500/20 text-green-400/60 px-2 py-0.5 hover:bg-green-500/10 transition-colors">
                         📱 Send WhatsApp
-                      </button>
+                      </a>
                     )}
                     <button onClick={() => navigator.clipboard.writeText(reviewUrl)}
                       className="font-cinzel text-[7px] tracking-[0.15em] uppercase border border-yellow-500/20 text-yellow-400/60 px-2 py-0.5 hover:bg-yellow-500/10 transition-colors">
