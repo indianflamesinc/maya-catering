@@ -2,6 +2,51 @@
 
 ---
 
+## FIX-089 — Build Fix: TypeScript type error on Supabase join result
+**Session:** Jun 17, 2026
+**ZIP:** MAYA-CONDIMENTS-Jun17-v4.zip
+**Fixes build error from:** MAYA-CONDIMENTS-Jun17-v3.zip
+
+### Error
+```
+Type error: Conversion of type '{ condiments: { id: any; name: any; }[]; }[]'
+to type 'CondimentMap[]' may be a mistake because neither type sufficiently overlaps.
+```
+
+### Root cause
+Supabase `.select('..., condiments(id, name)')` returns the joined relation as an
+**array** `{ id, name }[]` — even for a many-to-one join. Our `CondimentMap`
+interface declared `condiments` as a single object `{ id: string; name: string }`,
+which TypeScript correctly rejected.
+
+### RULE for all future Claude sessions
+When using Supabase nested select joins, the joined field is always typed as
+an array by the Supabase client, even for foreign key (many-to-one) joins:
+```ts
+// ❌ Wrong — TypeScript will reject this
+condiments: { id: string; name: string }
+
+// ✅ Correct — allow both shapes, normalize at point of use
+condiments: { id: string; name: string } | { id: string; name: string }[]
+```
+And at the point of use, normalize:
+```ts
+const name = Array.isArray(m.condiments) ? m.condiments[0]?.name : m.condiments?.name
+```
+And when casting query results, always go through `unknown` first:
+```ts
+setMappings((data as unknown as CondimentMap[]) || [])
+```
+
+### Files changed
+`src/app/admin/menu/page.tsx`:
+- `CondimentMap.condiments` type widened to accept array or object
+- `setMappings` cast changed to `as unknown as CondimentMap[]`
+- Insert result cast changed to `as unknown as CondimentMap`
+- `condiments?.name` accessor normalized via `Array.isArray()` check
+
+---
+
 ## FIX-088 — Build Fix: Supabase import path correction
 **Session:** Jun 17, 2026
 **ZIP:** MAYA-CONDIMENTS-Jun17-v3.zip

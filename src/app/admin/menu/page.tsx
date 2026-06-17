@@ -10,7 +10,7 @@ interface CondimentMap {
   id: string; menu_item_id: string; condiment_id: string
   default_qty: number; default_unit: string
   show_on_quote: boolean; is_mandatory: boolean; sort_order: number
-  condiments: { id: string; name: string }
+  condiments: { id: string; name: string } | { id: string; name: string }[]
 }
 interface MenuItem {
   id: string; name: string; category: string; cuisine_region: string
@@ -82,7 +82,7 @@ function CondimentPanel({ dish, allCondiments }: { dish: MenuItem; allCondiments
         .select('id,menu_item_id,condiment_id,default_qty,default_unit,show_on_quote,is_mandatory,sort_order,condiments(id,name)')
         .eq('menu_item_id', dish.id)
         .order('sort_order')
-      setMappings((data as CondimentMap[]) || [])
+      setMappings((data as unknown as CondimentMap[]) || [])
       setLoading(false)
     }
     load()
@@ -100,7 +100,7 @@ function CondimentPanel({ dish, allCondiments }: { dish: MenuItem; allCondiments
       .insert({ menu_item_id: dish.id, condiment_id: addingCondimentId, default_qty: parseFloat(addingQty) || 1, default_unit: addingUnit, show_on_quote: false, is_mandatory: true, sort_order: mappings.length })
       .select('id,menu_item_id,condiment_id,default_qty,default_unit,show_on_quote,is_mandatory,sort_order,condiments(id,name)')
       .single()
-    if (!error && data) { setMappings(prev => [...prev, data as CondimentMap]); setAddingCondimentId(''); setAddingQty('1'); setAddingUnit('Oz') }
+    if (!error && data) { setMappings(prev => [...prev, data as unknown as CondimentMap]); setAddingCondimentId(''); setAddingQty('1'); setAddingUnit('Oz') }
     setSaving(null)
   }
 
@@ -141,7 +141,7 @@ function CondimentPanel({ dish, allCondiments }: { dish: MenuItem; allCondiments
               <div key={m.id} className={`grid grid-cols-12 gap-1 px-3 py-2 items-center border-b border-amber-50 last:border-0 ${saving === m.id ? 'opacity-50' : ''} ${idx % 2 === 0 ? 'bg-white' : 'bg-amber-50/30'}`}>
                 <div className="col-span-4 flex items-center gap-1.5">
                   <span className="text-amber-400 text-xs">↳</span>
-                  <span className="text-sm font-medium text-gray-800">{m.condiments?.name}</span>
+                  <span className="text-sm font-medium text-gray-800">{Array.isArray(m.condiments) ? m.condiments[0]?.name : m.condiments?.name}</span>
                 </div>
                 <div className="col-span-1 flex justify-center">
                   <input type="number" min="0.25" step="0.25" value={m.default_qty}
