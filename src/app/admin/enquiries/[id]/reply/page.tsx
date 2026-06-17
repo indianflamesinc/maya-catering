@@ -546,47 +546,46 @@ export default function ReplyBuilderPage() {
                             </span>
                           </div>
                         )}
-                        {item.pricing_type === 'tray' && item.tray_size === 'custom' && (() => {
-                          // FIX-073 final v2 (Jun 17 2026): Two-box tray quantity input
-                          // Box 1: whole number (1, 2, 3 ... 20)
-                          // Box 2: fraction (.0, .5, .75)
-                          // Examples: 1+.5=1.5  |  5+.75=5.75  |  10+.0=10  |  2+.0=2
-                          const whole = Math.floor(item.tray_quantity ?? 1)
-                          const frac = Math.round(((item.tray_quantity ?? 1) - whole) * 100) / 100
-                          const fracStr = frac === 0.75 ? '.75' : frac === 0.5 ? '.5' : '.0'
-                          const setQty = (w: number, f: number) => {
-                            const val = Math.max(0, w) + f
-                            updateItem(item.id, { tray_quantity: val > 0 ? val : 1 })
-                          }
-                          return (
-                            <div className="flex items-center gap-1 mt-1">
-                              {/* Whole number box */}
-                              <input
-                                type="number"
-                                min="0"
-                                max="99"
-                                step="1"
-                                value={whole}
-                                onChange={e => setQty(parseInt(e.target.value) || 0, frac)}
-                                className={numInp}
-                                style={{ width: 55 }}
-                                title="Whole trays"
-                              />
-                              {/* Fraction selector */}
-                              <select
-                                value={fracStr}
-                                onChange={e => setQty(whole, parseFloat(e.target.value))}
-                                className={numInp + ' cursor-pointer'}
-                                style={{ width: 65 }}
-                                title="Fraction">
-                                <option value="0">.0</option>
-                                <option value="0.5">.5</option>
-                                <option value="0.75">.75</option>
-                              </select>
-                              <span className="text-cream/40 text-[10px]">×</span>
-                            </div>
-                          )
-                        })()}
+                        {item.pricing_type === 'tray' && item.tray_size === 'custom' && (
+                          <div className="flex items-center gap-1 mt-1">
+                            {/* FIX-073 final v3 (Jun 17 2026): Single text input + datalist suggestions
+                                - Type any value: 1, 1.5, 1.75, 2, 2.5, 2.75, 3, 5, 7.5, 10 etc
+                                - Datalist shows common options as suggestions (no click issues)
+                                - Fully editable — works for large Marriott events (10, 15 trays)
+                                BEFORE: two-box approach had z-index/click issues on fraction select
+                                AFTER:  single input, native browser suggestions, always typeable */}
+                            <datalist id={`tray-qty-${item.id}`}>
+                              <option value="1" />
+                              <option value="1.5" />
+                              <option value="1.75" />
+                              <option value="2" />
+                              <option value="2.5" />
+                              <option value="2.75" />
+                              <option value="3" />
+                              <option value="4" />
+                              <option value="5" />
+                              <option value="7.5" />
+                              <option value="10" />
+                              <option value="12" />
+                              <option value="15" />
+                            </datalist>
+                            <input
+                              type="number"
+                              list={`tray-qty-${item.id}`}
+                              min="0.5"
+                              step="0.25"
+                              value={item.tray_quantity ?? 1}
+                              onChange={e => {
+                                const v = parseFloat(e.target.value)
+                                if (!isNaN(v) && v > 0) updateItem(item.id, { tray_quantity: v })
+                              }}
+                              className={numInp}
+                              style={{ width: 80 }}
+                              title="Tray multiplier (e.g. 1.5, 2, 2.75, 10)"
+                            />
+                            <span className="text-cream/40 text-[10px]">×</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Unit price */}
