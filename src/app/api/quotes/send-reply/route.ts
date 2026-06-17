@@ -1,5 +1,6 @@
 // src/app/api/quotes/send-reply/route.ts
 // FIX-036 (Jun 16 2026): Thread history built before expiring old round
+// FIX-072 (Jun 16 2026): Removed duplicate Maya Reply in email — thread[] already has it
 // FIX-037 (Jun 16 2026): Current round admin_replies included in thread snapshot
 // FIX-038 (Jun 16 2026): Correct enquiry_id used for redirect
 // FIX-048 (Jun 16 2026): Email sign-off updated — Maya Team, phone, website
@@ -399,12 +400,10 @@ async function sendReplyEmail({
         }
       }
 
-      // Current round's customer comment + Maya reply
-      // Find the customer comment for this item from the current round
-      // (it's the last entry in the full thread before we sliced it)
-      if (item.admin_reply) {
-        threadHtml += `<div style="margin-top:4px;font-size:11px;padding:6px 12px;border-left:2px solid #C9A84C;background:#f0fff0;border-radius:0 4px 4px 0"><span style="color:#2e7d32;font-weight:bold">↳ Maya Reply:</span> <span style="color:#1a5c1a">${item.admin_reply}</span></div>`
-      }
+      // FIX-072 (Jun 16 2026): Removed duplicate admin_reply render
+      // BEFORE: item.admin_reply rendered separately AND also inside thread[] → showed twice
+      // AFTER:  thread[] (FIX-037/054) already contains current round's admin_reply as ↳ Maya (RN)
+      //         No separate render needed
 
       if (threadHtml) {
         dishRowsHtml += `

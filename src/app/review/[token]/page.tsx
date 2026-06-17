@@ -1,4 +1,6 @@
 'use client'
+// FIX-070 (Jun 16 2026): Full customer name in greeting — was split(' ')[0] showing first word only
+// FIX-071 (Jun 16 2026): Total column uses total_price_cents from snapshot (correct) not unit×tray_qty (wrong for per_piece/per_person on Round 2+)
 // src/app/review/[token]/page.tsx
 // FIX-051 (Jun 16 2026): Button label consistency
 //   BEFORE: instruction said 'Submit Feedback', button said 'Submit My Feedback'
@@ -158,7 +160,7 @@ export default function QuoteReviewPage() {
           Your Feedback Has Been Received!
         </h2>
         <p style={{ color: '#555', fontSize: 15, lineHeight: 1.8, marginBottom: 28 }}>
-          Thank you, {data.enquiry?.customer_name?.split(' ')[0]}! We've received your Round {data.round_number} feedback.<br />
+          Thank you, {data.enquiry?.customer_name}! We've received your Round {data.round_number} feedback.<br />
           Our team will review and get back to you within <strong>24 hours</strong>.
         </p>
         <div style={{ background: '#f6edd8', borderRadius: 8, padding: '20px 24px', textAlign: 'left', marginBottom: 24, fontSize: 13, color: '#666', lineHeight: 1.8 }}>
@@ -187,7 +189,7 @@ export default function QuoteReviewPage() {
         </div>
         <div style={{ maxWidth: 680, margin: '0 auto', padding: '40px 16px' }}>
           <h2 style={{ fontSize: 26, color: '#05091A', fontWeight: 'normal', marginBottom: 4 }}>
-            🎉 Booking Confirmed, {data.enquiry?.customer_name?.split(' ')[0]}!
+            🎉 Booking Confirmed, {data.enquiry?.customer_name}!
           </h2>
           <p style={{ color: '#666', fontSize: 14, marginBottom: 28 }}>
             {data.enquiry?.event_date ? new Date(data.enquiry.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''} ·{' '}
@@ -212,7 +214,7 @@ export default function QuoteReviewPage() {
                 <div style={{ color: '#555', fontSize: 12 }}>{getTrayLabel(item)}</div>
                 <div style={{ textAlign: 'center', color: '#444', fontSize: 13 }}>{getQtyLabel(item)}</div>
                 <div style={{ textAlign: 'right', color: '#555', fontSize: 13 }}>{fmt(item.unit_price_cents)}</div>
-                <div style={{ textAlign: 'right', color: '#C9A84C', fontWeight: 'bold', fontSize: 14 }}>{fmt(item.unit_price_cents * (item.tray_quantity ?? item.guest_count ?? item.piece_count ?? 1))}</div>
+                <div style={{ textAlign: 'right', color: '#C9A84C', fontWeight: 'bold', fontSize: 14 }}>{fmt(item.total_price_cents > 0 ? item.total_price_cents : item.unit_price_cents * (item.guest_count ?? item.piece_count ?? item.tray_quantity ?? 1))}</div>
               </div>
             ))}
           </div>
@@ -294,7 +296,7 @@ export default function QuoteReviewPage() {
 
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontSize: 28, color: '#05091A', margin: '0 0 8px', fontWeight: 'normal' }}>
-            Hello, {enquiry?.customer_name?.split(' ')[0]}! 👋
+            Hello, {enquiry?.customer_name}! 👋
           </h1>
           <p style={{ color: '#555', fontSize: 15, lineHeight: 1.7, margin: 0 }}>
             {round_number === 1
@@ -358,7 +360,7 @@ export default function QuoteReviewPage() {
                     <div style={{ textAlign: 'center', color: '#444', fontSize: 14, fontWeight: 'bold' }}>{getQtyLabel(item)}</div>
                     <div style={{ textAlign: 'right', color: '#555', fontSize: 13 }}>{fmt(item.unit_price_cents)}</div>
                     <div style={{ textAlign: 'right', color: '#C9A84C', fontWeight: 'bold', fontSize: 15 }}>
-                      {fmt(item.unit_price_cents * (item.tray_quantity ?? item.guest_count ?? item.piece_count ?? 1))}
+                      {fmt(item.total_price_cents > 0 ? item.total_price_cents : item.unit_price_cents * (item.guest_count ?? item.piece_count ?? item.tray_quantity ?? 1))}
                     </div>
                   </div>
 

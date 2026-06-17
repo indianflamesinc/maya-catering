@@ -1,6 +1,9 @@
 'use client'
 // src/app/admin/enquiries/[id]/page.tsx
 // FIX-007 (Jun 15 2026): Labour $0 hidden in quote summary
+// FIX-069 (Jun 16 2026): customerPhone prop passed to SendReviewButton — WhatsApp anchor link restored
+// FIX-074 (Jun 16 2026): Quote badge derives from enquiry.status — no longer stuck at DRAFT
+// FIX-075 (Jun 16 2026): Send Quote button hidden at approved/deposit_paid/confirmed stages
 // FIX-067 (Jun 16 2026): Quote status updates when enquiry advances
 //   BEFORE: quote badge stayed 'DRAFT' even after deposit paid / confirmed
 //   AFTER:  advanceStatus() also PATCHes latest quote status to 'approved' or 'sent'
@@ -223,11 +226,25 @@ export default function EnquiryDetailPage() {
               <div className="border border-gold/30 bg-gold/5 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <span className="font-cinzel text-[9px] tracking-[0.35em] uppercase text-gold">Latest Quote — Version {latestQuote.version}</span>
-                  <span className={`font-cinzel text-[7.5px] tracking-[0.15em] uppercase border px-2 py-1 ${
-                    latestQuote.status === 'approved' ? 'border-green-500/40 text-green-400 bg-green-500/10' :
-                    latestQuote.status === 'sent' ? 'border-blue-500/40 text-blue-400 bg-blue-500/10' :
-                    'border-gold/20 text-gold/60'
-                  }`}>{latestQuote.status}</span>
+                  {/* FIX-074 (Jun 16 2026): Badge reflects actual state — not just quote.status
+                       BEFORE: always showed 'draft' because quote.status not updated until deposit_paid
+                       AFTER:  derives badge from enquiry.status when past negotiating stage */}
+                  {(() => {
+                    const enqStatus = enquiry.status
+                    const derivedStatus = ['approved','deposit_paid','confirmed','completed'].includes(enqStatus)
+                      ? enqStatus.replace('_',' ')
+                      : latestQuote.status
+                    const badgeClass = ['approved','deposit paid','confirmed','completed'].includes(derivedStatus)
+                      ? 'border-green-500/40 text-green-400 bg-green-500/10'
+                      : latestQuote.status === 'sent'
+                      ? 'border-blue-500/40 text-blue-400 bg-blue-500/10'
+                      : 'border-gold/20 text-gold/60'
+                    return (
+                      <span className={`font-cinzel text-[7.5px] tracking-[0.15em] uppercase border px-2 py-1 ${badgeClass}`}>
+                        {derivedStatus}
+                      </span>
+                    )
+                  })()}
                 </div>
 
                 {/* FIX-007 (Jun 15 2026): hide Labour when $0 — was showing $0.00 cluttering the summary */}
@@ -259,12 +276,16 @@ export default function EnquiryDetailPage() {
                     className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-gold/30 text-gold px-4 py-2 hover:bg-gold/10 transition-colors">
                     Open Quote Builder →
                   </Link>
-                  {enquiry.customer_email && (
+                  {/* FIX-075 (Jun 16 2026): Hide Send Quote button at approved/deposit_paid/confirmed stages
+                       BEFORE: button showed at all stages including after deposit paid
+                       AFTER:  hidden when enquiry is approved, deposit_paid, confirmed, completed, cancelled */}
+                  {enquiry.customer_email && !['approved','deposit_paid','confirmed','completed','cancelled'].includes(enquiry.status) && (
                     <SendReviewButton
                       enquiryId={enquiry.id}
                       quoteId={latestQuote.id}
                       customerName={enquiry.customer_name}
                       customerEmail={enquiry.customer_email}
+                      customerPhone={enquiry.customer_phone}
                     />
                   )}
                 </div>

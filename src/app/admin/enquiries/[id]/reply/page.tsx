@@ -1,6 +1,7 @@
 'use client'
 // src/app/admin/enquiries/[id]/reply/page.tsx
 // FIX-038 (Jun 16 2026): Redirect uses enquiry_id from API response not from URL
+// FIX-073 (Jun 16 2026): Custom tray multiplier — dropdown not spinner in Reply Builder
 // FIX-052 (Jun 16 2026): Tray multiplier as dropdown — only 1×, 1.5×, 1.75×, 2×
 //   BEFORE: free number input allowed invalid values like 1.25, 1.375
 //   AFTER:  dropdown with only valid Maya tray multiples
@@ -547,10 +548,18 @@ export default function ReplyBuilderPage() {
                         )}
                         {item.pricing_type === 'tray' && item.tray_size === 'custom' && (
                           <div className="flex items-center gap-1 mt-1">
-                            {/* FIX-044 (Jun 16 2026): step=0.25 allows 1.75 — was 0.5 so 1.75 was skipped */}
-                          <input type="number" min="0.5" step="0.25" value={item.tray_quantity}
-                              onChange={e => updateItem(item.id, { tray_quantity: parseFloat(e.target.value) || 1 })}
-                              className={numInp} />
+                            {/* FIX-073 (Jun 16 2026): dropdown not spinner — only valid Maya multiples
+                                BEFORE: <input type=number step=0.25> allowed 1.25, 1.375 etc
+                                AFTER:  <select> with 1×, 1.5×, 1.75×, 2× only */}
+                            <select
+                              value={item.tray_quantity}
+                              onChange={e => updateItem(item.id, { tray_quantity: parseFloat(e.target.value) })}
+                              className={numInp + ' cursor-pointer'}>
+                              <option value={1}>1×</option>
+                              <option value={1.5}>1.5×</option>
+                              <option value={1.75}>1.75×</option>
+                              <option value={2}>2×</option>
+                            </select>
                             <span className="text-cream/30 text-[10px]">×</span>
                           </div>
                         )}
