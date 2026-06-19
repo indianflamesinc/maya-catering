@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       const parentItems = tray_items.filter((item: any) => !item.is_condiment)
       const condimentItems = tray_items.filter((item: any) => item.is_condiment)
 
-      function buildRow(item: any, sortOrder: number): any {
+      const buildRow = (item: any, sortOrder: number): any => {
         const pricingType = item.pricing_type || 'tray'
 
         const unitPrice =

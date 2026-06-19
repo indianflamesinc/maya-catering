@@ -226,7 +226,7 @@ export async function POST(req: NextRequest) {
       const parentItems = tray_items.filter((item: any) => !item.is_condiment)
       const condimentItems = tray_items.filter((item: any) => item.is_condiment)
 
-      function buildItemRow(item: any, sortOrder: number): any {
+      const buildItemRow = (item: any, sortOrder: number): any => {
         return {
           quote_id: newQuote.id,
           dish_name: item.dish_name,

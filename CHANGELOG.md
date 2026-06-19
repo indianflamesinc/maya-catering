@@ -195,3 +195,70 @@ git push
 ## Previous: FIX-090 — Lazy Supabase client init (Jun 18 2026)
 ## Previous: FIX-089 — TypeScript fix, Supabase join returns array (Jun 17 2026)
 ## Previous: FIX-083 to FIX-088 — Condiment architecture (Jun 17 2026)
+
+---
+
+## FIX-094 — Build fix: function declarations inside if-blocks (strict mode violation)
+**Session:** Jun 18, 2026
+**ZIP:** MAYA-FIX-094-Jun18-v1.zip
+**Fixes build error from:** MAYA-FIX-093-Jun18-v1.zip
+
+### Error
+```
+Type error: Function declarations are not allowed inside blocks in strict mode
+when targeting 'ES5'. Modules are automatically in strict mode.
+  127 |       function buildRow(item: any, sortOrder: number): any {
+```
+
+### Root cause
+FIX-093 introduced a helper function (`buildRow` in `quotes-route.ts`,
+`buildItemRow` in `send-reply-route.ts`) declared with the `function` keyword
+**directly inside an `if (tray_items?.length > 0) { ... }` block**. ES modules
+run in strict mode automatically, and strict mode forbids function
+declarations nested inside a block (if/for/while) — only function
+*expressions* (assigned to a `const`/`let`) are allowed there.
+
+### Fix
+Both functions converted from declarations to arrow function expressions:
+```ts
+// ❌ Before — illegal inside a block in strict mode
+function buildRow(item: any, sortOrder: number): any { ... }
+
+// ✅ After — legal anywhere, including inside blocks
+const buildRow = (item: any, sortOrder: number): any => { ... }
+```
+
+### RULE for all future Claude sessions
+**Never use the `function` keyword to declare a helper function inside an
+`if`/`for`/`while`/`try` block.** Always use `const name = (...) => { ... }`
+arrow function expressions for any function defined inside a block scope.
+Function declarations are only safe at the top level of a module or
+directly inside another function's body (not nested inside a conditional).
+
+### Files changed
+| File | Change |
+|------|--------|
+| `src/app/api/quotes/route.ts` | `buildRow` converted to const arrow function |
+| `src/app/api/quotes/send-reply/route.ts` | `buildItemRow` converted to const arrow function |
+
+---
+
+## INSTALL (FIX-094 only — re-copy these 2 files over FIX-093's versions)
+
+```bash
+cd /Users/ashok/PROJECTS/maya_catering_ent_web/maya-catering
+unzip ~/Downloads/MAYA-FIX-094-Jun18-v1.zip -d ~/Downloads/
+
+cp ~/Downloads/MAYA-FIX-094-Jun18-v1/quotes-route.ts      src/app/api/quotes/route.ts
+cp ~/Downloads/MAYA-FIX-094-Jun18-v1/send-reply-route.ts  src/app/api/quotes/send-reply/route.ts
+cp ~/Downloads/MAYA-FIX-094-Jun18-v1/CHANGELOG.md         CHANGELOG.md
+
+git add .
+git commit -m "FIX-094: function-in-block strict mode build error - convert to arrow functions"
+git push
+```
+
+This only replaces 2 of the 7 files from FIX-093 — the other 5
+(`TrayItemsSection.tsx`, `quote-page.tsx`, `send-review-route.ts`,
+`review-token-page.tsx`, `reply-page.tsx`) are unaffected and don't need
+to be re-copied if FIX-093 was already partially applied.
