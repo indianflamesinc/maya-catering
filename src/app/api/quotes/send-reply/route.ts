@@ -216,22 +216,60 @@ export async function POST(req: NextRequest) {
     if (qErr || !newQuote) throw new Error('Failed to save quote: ' + qErr?.message)
 
     // 7. Save updated tray items
+    // FIX-093 (Jun 18 2026): same two-pass insert pattern as /api/quotes/route.ts.
+    // BEFORE: a single bulk insert with no condiment columns at all — condiment rows
+    //         built in the Reply Builder were silently dropped on every Round 2+ save,
+    //         and even if columns existed, parent_item_id would point at stale ids.
+    // AFTER:  Pass 1 inserts parent (non-condiment) rows, capturing real new DB ids.
+    //         Pass 2 inserts condiment rows with parent_item_id rewritten to the new id.
     if (tray_items?.length > 0) {
-      const itemsToInsert = tray_items.map((item: any, idx: number) => ({
-        quote_id: newQuote.id,
-        dish_name: item.dish_name,
-        pricing_type: item.pricing_type || 'tray',
-        tray_size: item.tray_size || null,
-        tray_quantity: item.tray_quantity || 1,
-        unit_price_cents: item.unit_price_cents || 0,
-        total_price_cents: calcItemTotal(item),
-        guest_count: item.guest_count || enquiry.guest_count || 100,
-        piece_count: item.piece_count || 1,
-        notes_to_customer: item.notes_to_customer || '',
-        customer_comments: '',
-        sort_order: idx,
-      }))
-      await supabase.from('quote_tray_items').insert(itemsToInsert)
+      const parentItems = tray_items.filter((item: any) => !item.is_condiment)
+      const condimentItems = tray_items.filter((item: any) => item.is_condiment)
+
+      function buildItemRow(item: any, sortOrder: number): any {
+        return {
+          quote_id: newQuote.id,
+          dish_name: item.dish_name,
+          pricing_type: item.pricing_type || 'tray',
+          tray_size: item.tray_size || null,
+          tray_quantity: item.tray_quantity || 1,
+          unit_price_cents: item.unit_price_cents || 0,
+          total_price_cents: item.is_condiment ? 0 : calcItemTotal(item),
+          guest_count: item.guest_count || enquiry.guest_count || 100,
+          piece_count: item.piece_count || 1,
+          notes_to_customer: item.notes_to_customer || '',
+          customer_comments: '',
+          sort_order: sortOrder,
+          is_condiment: item.is_condiment || false,
+          parent_item_id: null,
+          condiment_map_id: item.condiment_map_id || null,
+          show_on_quote: item.is_condiment ? !!item.show_on_quote : true,
+          condiment_qty: item.condiment_qty || null,
+          condiment_unit: item.condiment_unit || null,
+        }
+      }
+
+      const { data: insertedParents, error: parentInsertError } = await supabase
+        .from('quote_tray_items')
+        .insert(parentItems.map((item: any, i: number) => buildItemRow(item, i)))
+        .select('id')
+
+      if (parentInsertError) throw new Error('Failed to save dish items: ' + parentInsertError.message)
+
+      const oldIdToNewId: Record<string, string> = {}
+      parentItems.forEach((item: any, i: number) => {
+        if (item.id && insertedParents?.[i]) oldIdToNewId[item.id] = insertedParents[i].id
+      })
+
+      if (condimentItems.length > 0) {
+        const condimentRows = condimentItems.map((item: any, i: number) => {
+          const row = buildItemRow(item, parentItems.length + i)
+          row.parent_item_id = item.parent_item_id ? (oldIdToNewId[item.parent_item_id] || null) : null
+          return row
+        })
+        const { error: condInsertError } = await supabase.from('quote_tray_items').insert(condimentRows)
+        if (condInsertError) throw new Error('Failed to save condiment items: ' + condInsertError.message)
+      }
     }
 
     // 8. Build new round number
@@ -255,7 +293,7 @@ export async function POST(req: NextRequest) {
           guest_count: item.guest_count || enquiry.guest_count,
           piece_count: item.piece_count || 1,
           unit_price_cents: item.unit_price_cents || 0,
-          total_price_cents: calcItemTotal(item),
+          total_price_cents: item.is_condiment ? 0 : calcItemTotal(item),
           notes_to_customer: item.notes_to_customer || '',
           // FIX-037: admin_reply is the CURRENT round reply shown highlighted
           // Only set if admin replied to THIS item this round
@@ -269,6 +307,15 @@ export async function POST(req: NextRequest) {
           //         No duplication because they're rendered in different UI sections
           thread: thread, // FIX-054: ALL rounds, no slice
           customer_comments: '',
+          // FIX-093 (Jun 18 2026): carry condiment fields into the Round 2+ snapshot.
+          // BEFORE: condiment rows existed in the Reply Builder's in-memory items but
+          //         vanished from the snapshot the moment a new round was sent — the
+          //         Round 2+ email and review page never saw them.
+          is_condiment: item.is_condiment || false,
+          parent_item_id: item.parent_item_id || null,
+          show_on_quote: item.show_on_quote !== false,
+          condiment_qty: item.condiment_qty || null,
+          condiment_unit: item.condiment_unit || null,
         }
       }),
       subtotal_cents,
@@ -368,7 +415,28 @@ async function sendReplyEmail({
   let dishRowsHtml = ''
   for (let i = 0; i < (snapshot.tray_items || []).length; i++) {
     const item = snapshot.tray_items[i]
+
+    // FIX-093 (Jun 18 2026): kitchen-only condiments never appear in the Round 2+
+    // email at all — same rule as the Round 1 email in send-review/route.ts.
+    if (item.is_condiment && !item.show_on_quote) continue
+
     const bg = i % 2 === 0 ? '#ffffff' : '#f9f6f0'
+
+    if (item.is_condiment) {
+      // FIX-093: condiment row — indented, no separate price (included in parent dish)
+      const qtyUnit = [item.condiment_qty, item.condiment_unit].filter(Boolean).join(' ') || ''
+      dishRowsHtml += `
+        <tr style="background:${bg}">
+          <td style="padding:7px 12px 7px 28px;font-size:12px;color:#888;font-style:italic;vertical-align:top">↳ ${item.dish_name}</td>
+          <td style="padding:7px 12px;font-size:11px;color:#aaa;vertical-align:top"></td>
+          <td style="padding:7px 12px;font-size:11px;color:#aaa;text-align:center;vertical-align:top">${qtyUnit}</td>
+          <td style="padding:7px 12px;font-size:11px;color:#aaa;text-align:right;vertical-align:top"></td>
+          <td style="padding:7px 12px;font-size:11px;color:#aaa;text-align:right;font-style:italic;vertical-align:top">Included</td>
+          <td style="padding:7px 12px;font-size:11px;color:#aaa;vertical-align:top"></td>
+        </tr>`
+      continue
+    }
+
     const itemTotal = calcItemTotal(item)
 
     dishRowsHtml += `

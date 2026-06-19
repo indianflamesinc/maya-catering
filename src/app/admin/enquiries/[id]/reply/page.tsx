@@ -55,9 +55,20 @@ interface DishItem {
     per_person_cents: number
     per_piece_cents: number
   }
+  // FIX-093 (Jun 18 2026): condiment support — same shape as TrayLineItem in
+  // TrayItemsSection.tsx, so condiment rows survive the Round 1 → Round 2+ → Round 3+
+  // journey without losing their qty/unit/visibility settings.
+  is_condiment?: boolean
+  parent_item_id?: string
+  condiment_map_id?: string
+  condiment_qty?: string
+  condiment_unit?: string
+  show_on_quote?: boolean
 }
 
 function calcTotal(item: DishItem): number {
+  // FIX-093: condiment rows are included in the parent dish price — never charged separately
+  if (item.is_condiment) return 0
   if (item.pricing_type === 'tray') {
     if (item.tray_size === 'custom') return Math.round((item.tray_quantity || 1) * item.unit_price_cents)
     return item.unit_price_cents
@@ -288,6 +299,16 @@ export default function ReplyBuilderPage() {
             per_person_cents: masterDish.per_person_cents || 0,
             per_piece_cents: masterDish.per_piece_cents || 0,
           } : undefined,
+          // FIX-093 (Jun 18 2026): carry condiment fields forward from the snapshot.
+          // BEFORE: these fields didn't exist on this interface at all — condiment rows
+          //         built in Round 1's TrayItemsSection would vanish the moment the quote
+          //         entered Round 2+ editing in this Reply Builder.
+          is_condiment: item.is_condiment || false,
+          parent_item_id: item.parent_item_id || undefined,
+          condiment_map_id: item.condiment_map_id || undefined,
+          condiment_qty: item.condiment_qty || undefined,
+          condiment_unit: item.condiment_unit || undefined,
+          show_on_quote: item.show_on_quote !== false,
         }
       }))
 
@@ -316,7 +337,8 @@ export default function ReplyBuilderPage() {
   }
 
   function removeItem(itemId: string) {
-    setItems(prev => prev.filter(item => item.id !== itemId))
+    // FIX-093: removing a parent dish also removes its condiment children
+    setItems(prev => prev.filter(item => item.id !== itemId && item.parent_item_id !== itemId))
   }
 
   function addBlank() {
@@ -327,10 +349,15 @@ export default function ReplyBuilderPage() {
     }])
   }
 
-  function addFromMaster(dish: any) {
+  // FIX-093 (Jun 18 2026): addFromMaster is now async — after adding the dish row,
+  // it fetches that dish's condiments from menu_condiment_map and inserts them as
+  // child rows immediately below it, same as the Round 1 Quote Builder behavior.
+  async function addFromMaster(dish: any) {
     const pricing: PricingType = dish.has_tray ? 'tray' : dish.has_per_person ? 'per_person' : 'per_piece'
-    setItems(prev => [...prev, {
-      id: uid(), dish_name: dish.name, pricing_type: pricing,
+    const parentId = uid()
+
+    const newRows: DishItem[] = [{
+      id: parentId, dish_name: dish.name, pricing_type: pricing,
       tray_size: 'medium', tray_quantity: 1,
       unit_price_cents: dish.medium_tray_cents || dish.per_person_cents || dish.per_piece_cents || 0,
       guest_count: enquiry?.guest_count || 100,
@@ -342,7 +369,40 @@ export default function ReplyBuilderPage() {
         per_person_cents: dish.per_person_cents || 0,
         per_piece_cents: dish.per_piece_cents || 0,
       },
-    }])
+    }]
+
+    try {
+      const res = await fetch(`/api/menu-condiment-map?menu_item_id=${dish.id}`)
+      const mappings = await res.json()
+      if (Array.isArray(mappings)) {
+        for (const m of mappings) {
+          const condimentName = Array.isArray(m.condiments) ? m.condiments[0]?.name : m.condiments?.name
+          newRows.push({
+            id: uid(),
+            dish_name: condimentName || 'Condiment',
+            pricing_type: 'tray',
+            tray_quantity: 1,
+            unit_price_cents: 0,
+            guest_count: 0,
+            piece_count: 0,
+            notes_to_customer: '',
+            admin_reply: '',
+            thread: [],
+            customer_comment: '',
+            is_condiment: true,
+            parent_item_id: parentId,
+            condiment_map_id: m.id,
+            condiment_qty: String(m.default_qty ?? 1),
+            condiment_unit: m.default_unit || 'Oz',
+            show_on_quote: !!m.show_on_quote,
+          })
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load condiments for', dish.name, e)
+    }
+
+    setItems(prev => [...prev, ...newRows])
     setShowPicker(false); setSearch('')
   }
 
@@ -384,6 +444,15 @@ export default function ReplyBuilderPage() {
             piece_count: i.piece_count,
             notes_to_customer: i.notes_to_customer,
             admin_reply: i.admin_reply,
+            // FIX-093 (Jun 18 2026): condiment fields — were missing from this payload,
+            // so send-reply's snapshot rebuild would silently drop condiment rows on
+            // every Round 2+ save even though they survived the in-memory edit session.
+            is_condiment: i.is_condiment || false,
+            parent_item_id: i.parent_item_id || null,
+            condiment_map_id: i.condiment_map_id || null,
+            condiment_qty: i.condiment_qty || null,
+            condiment_unit: i.condiment_unit || null,
+            show_on_quote: i.show_on_quote !== false,
           })),
           delivery_fee_cents: deliveryCents,
           setup_fee_cents: setupCents,
@@ -532,6 +601,42 @@ export default function ReplyBuilderPage() {
             {items.map((item, idx) => {
               const lineTotal = calcTotal(item)
               const hasComment = !!item.customer_comment
+
+              // FIX-093 (Jun 18 2026): condiment rows render as a compact strip — no
+              // pricing controls, no thread/reply box, just qty/unit/visibility editing
+              // and a remove button. Matches the pattern used in TrayItemsSection.tsx.
+              if (item.is_condiment) {
+                return (
+                  <div key={item.id} className="ml-6 flex items-center gap-3 px-3 py-2 border border-amber-500/15 bg-amber-500/[0.04] rounded-sm">
+                    <span className="text-amber-400/50 text-[12px] flex-shrink-0">↳</span>
+                    <input value={item.dish_name}
+                      onChange={e => updateItem(item.id, { dish_name: e.target.value })}
+                      className="bg-transparent border-b border-amber-500/20 text-amber-100/90 font-jost font-light text-[13px] outline-none focus:border-amber-400/50 transition-colors flex-1"
+                      placeholder="Condiment name..." />
+                    <input value={item.condiment_qty || ''}
+                      onChange={e => updateItem(item.id, { condiment_qty: e.target.value })}
+                      className="bg-[#0a1428] border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-14 text-center rounded-sm"
+                      placeholder="Qty" />
+                    <input value={item.condiment_unit || ''}
+                      onChange={e => updateItem(item.id, { condiment_unit: e.target.value })}
+                      className="bg-[#0a1428] border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-20 rounded-sm"
+                      placeholder="Unit" />
+                    <button onClick={() => updateItem(item.id, { show_on_quote: !item.show_on_quote })}
+                      title={item.show_on_quote ? 'Visible to customer — click to hide' : 'Kitchen-only — click to show on quote'}
+                      className={`flex-shrink-0 font-cinzel text-[7px] tracking-[0.15em] uppercase px-2.5 py-1.5 border transition-colors ${
+                        item.show_on_quote
+                          ? 'border-green-500/40 text-green-300 bg-green-500/10'
+                          : 'border-cream/15 text-cream/30 bg-transparent'
+                      }`}>
+                      {item.show_on_quote ? 'On Quote' : 'Kitchen Only'}
+                    </button>
+                    <span className="text-cream/20 text-[10px] flex-shrink-0">Included</span>
+                    <button onClick={() => removeItem(item.id)} className="text-red-400/30 hover:text-red-400 transition-colors flex-shrink-0">
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                )
+              }
 
               return (
                 <div key={item.id} className={`border rounded-sm overflow-hidden ${hasComment ? 'border-yellow-500/30' : 'border-gold/20'}`}>

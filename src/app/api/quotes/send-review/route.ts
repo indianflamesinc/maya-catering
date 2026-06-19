@@ -114,6 +114,17 @@ export async function POST(req: NextRequest) {
         // FIX-026: save notes_to_customer in snapshot (falls back to customer_comments for old quotes)
         notes_to_customer: item.notes_to_customer || item.customer_comments || '',
         customer_comments: '',
+        // FIX-093 (Jun 18 2026): carry condiment fields into the snapshot.
+        // BEFORE: condiment rows existed in quote_tray_items but were dropped here —
+        //         the Round 1 email and review page never saw them at all.
+        // AFTER:  is_condiment/parent_item_id/show_on_quote/condiment_qty/condiment_unit
+        //         all flow into the snapshot. Email/review rendering filters by
+        //         show_on_quote so kitchen-only condiments stay invisible to the customer.
+        is_condiment: item.is_condiment || false,
+        parent_item_id: item.parent_item_id || null,
+        show_on_quote: item.show_on_quote !== false,
+        condiment_qty: item.condiment_qty || null,
+        condiment_unit: item.condiment_unit || null,
       })),
       sessions: (sessions ?? []).map(sess => ({
         id: sess.id,
@@ -220,7 +231,27 @@ async function sendReviewEmail({
       </tr>`
 
     snapshot.tray_items.forEach((item: any, i: number) => {
+      // FIX-093 (Jun 18 2026): kitchen-only condiments (show_on_quote=false) never
+      // appear in the customer email at all — they're an internal kitchen instruction.
+      if (item.is_condiment && !item.show_on_quote) return
+
       const bg = i % 2 === 0 ? '#ffffff' : '#f9f6f0'
+
+      if (item.is_condiment) {
+        // FIX-093: condiment row — indented, no separate price (included in parent dish)
+        const qtyUnit = [item.condiment_qty, item.condiment_unit].filter(Boolean).join(' ') || ''
+        dishRowsHtml += `
+          <tr style="background:${bg}">
+            <td style="padding:7px 10px 7px 26px;font-size:12px;color:#888;font-style:italic">↳ ${item.dish_name}</td>
+            <td style="padding:7px 10px;font-size:11px;color:#aaa"></td>
+            <td style="padding:7px 10px;font-size:11px;color:#aaa;text-align:center">${qtyUnit}</td>
+            <td style="padding:7px 10px;font-size:11px;color:#aaa;text-align:right"></td>
+            <td style="padding:7px 10px;font-size:11px;color:#aaa;text-align:right;font-style:italic">Included</td>
+            <td style="padding:7px 10px;font-size:11px;color:#aaa"></td>
+          </tr>`
+        return
+      }
+
       // FIX-026: notes_to_customer shown in email table
       const notes = item.notes_to_customer || ''
       dishRowsHtml += `

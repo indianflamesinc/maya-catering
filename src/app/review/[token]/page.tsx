@@ -205,17 +205,31 @@ export default function QuoteReviewPage() {
               <div>Dish</div><div>Type</div><div style={{ textAlign: 'center' }}>Qty</div>
               <div style={{ textAlign: 'right' }}>Unit</div><div style={{ textAlign: 'right' }}>Total</div>
             </div>
-            {(snap?.tray_items || []).map((item: any, i: number) => (
-              <div key={item.id || i} style={{ display: 'grid', gridTemplateColumns: '2fr 100px 80px 110px 110px', gap: 8, padding: '12px 20px', borderTop: '1px solid #f0e8d8', background: i % 2 === 0 ? '#fff' : '#fdfaf6', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 'bold', color: '#1a1a1a', fontSize: 14 }}>{item.dish_name}</div>
-                  {item.notes_to_customer && <div style={{ color: '#999', fontSize: 11, marginTop: 2, fontStyle: 'italic' }}>{item.notes_to_customer}</div>}
+            {(snap?.tray_items || [])
+              // FIX-093 (Jun 18 2026): kitchen-only condiments never shown to the customer,
+              // even on the permanent order confirmation page.
+              .filter((item: any) => !item.is_condiment || item.show_on_quote)
+              .map((item: any, i: number) => (
+              item.is_condiment ? (
+                <div key={item.id || i} style={{ display: 'grid', gridTemplateColumns: '2fr 100px 80px 110px 110px', gap: 8, padding: '8px 20px 8px 36px', borderTop: '1px solid #f0e8d8', background: i % 2 === 0 ? '#fff' : '#fdfaf6', alignItems: 'center' }}>
+                  <div style={{ color: '#999', fontSize: 12, fontStyle: 'italic' }}>↳ {item.dish_name}</div>
+                  <div></div>
+                  <div style={{ textAlign: 'center', color: '#aaa', fontSize: 12 }}>{[item.condiment_qty, item.condiment_unit].filter(Boolean).join(' ')}</div>
+                  <div></div>
+                  <div style={{ textAlign: 'right', color: '#aaa', fontSize: 12, fontStyle: 'italic' }}>Included</div>
                 </div>
-                <div style={{ color: '#555', fontSize: 12 }}>{getTrayLabel(item)}</div>
-                <div style={{ textAlign: 'center', color: '#444', fontSize: 13 }}>{getQtyLabel(item)}</div>
-                <div style={{ textAlign: 'right', color: '#555', fontSize: 13 }}>{fmt(item.unit_price_cents)}</div>
-                <div style={{ textAlign: 'right', color: '#C9A84C', fontWeight: 'bold', fontSize: 14 }}>{fmt(item.total_price_cents > 0 ? item.total_price_cents : item.unit_price_cents * (item.guest_count ?? item.piece_count ?? item.tray_quantity ?? 1))}</div>
-              </div>
+              ) : (
+                <div key={item.id || i} style={{ display: 'grid', gridTemplateColumns: '2fr 100px 80px 110px 110px', gap: 8, padding: '12px 20px', borderTop: '1px solid #f0e8d8', background: i % 2 === 0 ? '#fff' : '#fdfaf6', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold', color: '#1a1a1a', fontSize: 14 }}>{item.dish_name}</div>
+                    {item.notes_to_customer && <div style={{ color: '#999', fontSize: 11, marginTop: 2, fontStyle: 'italic' }}>{item.notes_to_customer}</div>}
+                  </div>
+                  <div style={{ color: '#555', fontSize: 12 }}>{getTrayLabel(item)}</div>
+                  <div style={{ textAlign: 'center', color: '#444', fontSize: 13 }}>{getQtyLabel(item)}</div>
+                  <div style={{ textAlign: 'right', color: '#555', fontSize: 13 }}>{fmt(item.unit_price_cents)}</div>
+                  <div style={{ textAlign: 'right', color: '#C9A84C', fontWeight: 'bold', fontSize: 14 }}>{fmt(item.total_price_cents > 0 ? item.total_price_cents : item.unit_price_cents * (item.guest_count ?? item.piece_count ?? item.tray_quantity ?? 1))}</div>
+                </div>
+              )
             ))}
           </div>
 
@@ -347,9 +361,19 @@ export default function QuoteReviewPage() {
               Your Menu Items
             </div>
 
-            {snapshot.tray_items.map((item: any, i: number) => (
+            {snapshot.tray_items
+              // FIX-093 (Jun 18 2026): kitchen-only condiments hidden from customer review page
+              .filter((item: any) => !item.is_condiment || item.show_on_quote)
+              .map((item: any, i: number) => (
               <div key={item.id} style={{ borderTop: i > 0 ? '1px solid #f0e8d8' : undefined, background: i % 2 === 0 ? '#fff' : '#fdfaf6' }}>
-                {/* Main dish row */}
+                {item.is_condiment ? (
+                  // FIX-093: condiment row — compact, indented, no comment box, no separate price
+                  <div style={{ padding: '10px 20px 10px 36px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ color: '#bbb', fontSize: 13, fontStyle: 'italic' }}>↳ {item.dish_name}</span>
+                    <span style={{ color: '#bbb', fontSize: 12 }}>{[item.condiment_qty, item.condiment_unit].filter(Boolean).join(' ')}</span>
+                    <span style={{ color: '#bbb', fontSize: 11, fontStyle: 'italic', marginLeft: 'auto' }}>Included</span>
+                  </div>
+                ) : (
                 <div style={{ padding: '16px 20px' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 80px 110px 110px', gap: 8, alignItems: 'center', marginBottom: 8 }}>
                     <div>
@@ -411,6 +435,7 @@ export default function QuoteReviewPage() {
                     style={{ width: '100%', border: '1px solid #e0d4bc', borderRadius: 4, padding: '8px 12px', fontSize: 13, color: '#444', outline: 'none', background: '#fdfaf6', boxSizing: 'border-box', marginTop: 4 }}
                   />
                 </div>
+                )}
               </div>
             ))}
           </div>

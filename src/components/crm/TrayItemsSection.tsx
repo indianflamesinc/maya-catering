@@ -22,6 +22,16 @@ export interface TrayLineItem {
   notes_to_customer: string
   customer_feedback?: string
   master_id?: string
+  // FIX-093 (Jun 18 2026): condiment support
+  // is_condiment marks a row as a condiment child of a parent dish row (parent_item_id)
+  // condiment_qty/condiment_unit hold the editable amount (e.g. "2", "32 Oz")
+  // show_on_quote controls whether the customer sees this row (Option C toggle)
+  is_condiment?: boolean
+  parent_item_id?: string
+  condiment_map_id?: string
+  condiment_qty?: string
+  condiment_unit?: string
+  show_on_quote?: boolean
 }
 
 interface MasterMenuItem {
@@ -58,6 +68,8 @@ const CAT_LABELS: Record<string, string> = {
 }
 
 export function calcLineTotal(item: TrayLineItem): number {
+  // FIX-093: condiment rows are included in the parent dish price — never charged separately
+  if (item.is_condiment) return 0
   if (item.pricing_type === 'tray') {
     if (item.tray_size === 'custom') return Math.round((item.tray_quantity || 1) * (item.unit_price_cents || 0))
     return item.unit_price_cents || 0
@@ -124,10 +136,16 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
     fetch('/api/menu-master').then(r => r.json()).then(d => setMasterMenu(d.items || []))
   }, [])
 
-  function addFromMaster(dish: MasterMenuItem) {
+  // FIX-093 (Jun 18 2026): addFromMaster is now async — after inserting the dish row,
+  // it fetches that dish's condiments from menu_condiment_map and inserts them as
+  // child rows immediately below it. show_on_quote and default qty/unit come straight
+  // from the menu master settings (set in /admin/menu condiment panel).
+  async function addFromMaster(dish: MasterMenuItem) {
     const pricing: PricingType = dish.has_tray ? 'tray' : dish.has_per_person ? 'per_person' : 'per_piece'
-    onChange([...items, {
-      id: uid(), dish_name: dish.name, master_id: dish.id,
+    const parentId = uid()
+
+    const newRows: TrayLineItem[] = [{
+      id: parentId, dish_name: dish.name, master_id: dish.id,
       pricing_type: pricing,
       tray_size: 'medium', tray_quantity: 1,
       unit_price_cents: dish.medium_tray_cents || 0,
@@ -136,7 +154,35 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
       piece_count: 1,
       per_piece_price_cents: dish.per_piece_cents || 0,
       notes_to_customer: '',  // FIX-026: renamed from customer_comments
-    }])
+    }]
+
+    // FIX-093: fetch and insert condiments linked to this dish in Menu Master
+    try {
+      const res = await fetch(`/api/menu-condiment-map?menu_item_id=${dish.id}`)
+      const mappings = await res.json()
+      if (Array.isArray(mappings)) {
+        for (const m of mappings) {
+          const condimentName = Array.isArray(m.condiments) ? m.condiments[0]?.name : m.condiments?.name
+          newRows.push({
+            id: uid(),
+            dish_name: condimentName || 'Condiment',
+            pricing_type: 'tray',
+            unit_price_cents: 0,
+            notes_to_customer: '',
+            is_condiment: true,
+            parent_item_id: parentId,
+            condiment_map_id: m.id,
+            condiment_qty: String(m.default_qty ?? 1),
+            condiment_unit: m.default_unit || 'Oz',
+            show_on_quote: !!m.show_on_quote,
+          })
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load condiments for', dish.name, e)
+    }
+
+    onChange([...items, ...newRows])
     setShowPicker(false); setSearch('')
   }
 
@@ -166,6 +212,16 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
     }))
   }
 
+  // FIX-093: removing a parent dish also removes its condiment children
+  function removeItemAndChildren(id: string) {
+    onChange(items.filter(i => i.id !== id && i.parent_item_id !== id))
+  }
+
+  // FIX-093: toggle whether a condiment row is visible to the customer on the quote
+  function toggleCondimentVisibility(id: string) {
+    onChange(items.map(i => i.id === id ? { ...i, show_on_quote: !i.show_on_quote } : i))
+  }
+
   const subtotal = items.reduce((s, i) => s + calcLineTotal(i), 0)
   const filteredMenu = masterMenu.filter(m => !search || m.name.toLowerCase().includes(search.toLowerCase()))
   const byCategory = filteredMenu.reduce((acc, item) => {
@@ -190,6 +246,42 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
       {items.map((item, idx) => {
         const lineTotal = calcLineTotal(item)
         const isEven = idx % 2 === 0
+
+        // FIX-093: condiment rows render as a compact indented strip, not the full dish grid
+        // (tray size / pricing type / unit price don't apply to a condiment)
+        if (item.is_condiment) {
+          return (
+            <div key={item.id} className="mb-1 ml-6 flex items-center gap-3 px-3 py-2 border border-amber-500/15 bg-amber-500/[0.04] rounded-sm">
+              <span className="text-amber-400/50 text-[12px] flex-shrink-0">↳</span>
+              <input value={item.dish_name}
+                onChange={e => updateItem(item.id, { dish_name: e.target.value })}
+                className="bg-transparent border-b border-amber-500/20 text-amber-100/90 font-jost font-light text-[13px] outline-none focus:border-amber-400/50 transition-colors flex-1"
+                placeholder="Condiment name..." />
+              <input value={item.condiment_qty || ''}
+                onChange={e => updateItem(item.id, { condiment_qty: e.target.value })}
+                className="bg-[#0a1428] border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-14 text-center rounded-sm"
+                placeholder="Qty" />
+              <input value={item.condiment_unit || ''}
+                onChange={e => updateItem(item.id, { condiment_unit: e.target.value })}
+                className="bg-[#0a1428] border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-20 rounded-sm"
+                placeholder="Unit" />
+              <button onClick={() => toggleCondimentVisibility(item.id)}
+                title={item.show_on_quote ? 'Visible to customer — click to hide' : 'Kitchen-only — click to show on quote'}
+                className={`flex-shrink-0 font-cinzel text-[7px] tracking-[0.15em] uppercase px-2.5 py-1.5 border transition-colors ${
+                  item.show_on_quote
+                    ? 'border-green-500/40 text-green-300 bg-green-500/10'
+                    : 'border-cream/15 text-cream/30 bg-transparent'
+                }`}>
+                {item.show_on_quote ? 'On Quote' : 'Kitchen Only'}
+              </button>
+              <span className="text-cream/20 text-[10px] flex-shrink-0">Included</span>
+              <button onClick={() => onChange(items.filter(i => i.id !== item.id))}
+                className="text-red-400/30 hover:text-red-400 transition-colors flex-shrink-0">
+                <Trash2 size={12} />
+              </button>
+            </div>
+          )
+        }
 
         return (
           <div key={item.id} className="mb-1">
@@ -265,8 +357,8 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
                 className="bg-transparent border-b border-gold/15 text-cream/70 font-jost font-light text-[12px] outline-none placeholder:text-cream/15 focus:border-gold/40 transition-colors w-full pb-1"
                 placeholder="e.g. comes with chutney, mild spicy..." />
 
-              {/* Delete */}
-              <button onClick={() => onChange(items.filter(i => i.id !== item.id))}
+              {/* Delete — FIX-093: also removes condiment children */}
+              <button onClick={() => removeItemAndChildren(item.id)}
                 className="text-red-400/30 hover:text-red-400 transition-colors flex items-center justify-center">
                 <Trash2 size={13} />
               </button>

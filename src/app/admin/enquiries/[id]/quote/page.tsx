@@ -130,7 +130,13 @@ export default function QuoteBuilderPage() {
               const trayQty = item.tray_quantity || 1
 
               return {
-                id: uid(),
+                // FIX-093 (Jun 18 2026): use the DB row's real id, not a fresh uid().
+                // BEFORE: id: uid() generated a new random id every load, so condiment rows'
+                //         parent_item_id (saved against the OLD id) could never match up with
+                //         the freshly-generated parent id on reload — condiments would silently
+                //         lose their link to the parent dish after any save/reload cycle.
+                // AFTER:  id: item.id keeps the real DB id stable across loads.
+                id: item.id,
                 dish_name: item.dish_name,
                 pricing_type: item.pricing_type || 'tray',
                 tray_size: item.tray_size || 'medium',
@@ -147,6 +153,13 @@ export default function QuoteBuilderPage() {
                 customer_comments: item.customer_comments || '',
                 // FIX-011: attach customer feedback per dish for display in TrayItemsSection
                 customer_feedback: customerFeedbackMap[item.dish_name?.toLowerCase()] || undefined,
+                // FIX-093: read condiment fields back from DB
+                is_condiment: item.is_condiment || false,
+                parent_item_id: item.parent_item_id || undefined,
+                condiment_map_id: item.condiment_map_id || undefined,
+                condiment_qty: item.condiment_qty || undefined,
+                condiment_unit: item.condiment_unit || undefined,
+                show_on_quote: item.show_on_quote !== false,
               }
             }))
           }

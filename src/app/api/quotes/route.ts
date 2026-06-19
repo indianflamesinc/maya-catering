@@ -5,6 +5,12 @@
 // FIX-005 (Jun 15 2026): delivery/setup/service fee fields added to INSERT
 //   BEFORE: only subtotal/tax/total saved; fee columns missing causing fees to reset on reload
 //   AFTER:  all fee fields saved with both old and new field names for backwards compat
+// FIX-093 (Jun 18 2026): condiment columns added to quote_tray_items INSERT
+//   BEFORE: is_condiment/parent_item_id/condiment_map_id/show_on_quote/condiment_qty/
+//           condiment_unit were never written — condiment rows built in TrayItemsSection
+//           were silently dropped the moment the quote was saved, never reaching the DB
+//   AFTER:  all 6 condiment fields saved; condiment rows now persist through quote save
+//           and flow correctly into send-review snapshot building
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
@@ -105,51 +111,104 @@ export async function POST(req: NextRequest) {
     if (quoteError) throw quoteError
 
     // Save tray items
+    // FIX-093 (Jun 18 2026): two-pass insert for condiment parent linkage.
+    // BEFORE: a single bulk insert() meant condiment rows' parent_item_id pointed at
+    //         client-side ids (uid() or stale DB ids from a previous version) that
+    //         don't exist as real DB rows in THIS insert — the FK relationship was
+    //         meaningless/broken the moment a quote was saved more than once.
+    // AFTER:  Pass 1 inserts all non-condiment (parent) rows, capturing the real new
+    //         DB id for each by matching client-side id → array position.
+    //         Pass 2 inserts condiment rows with parent_item_id rewritten to point at
+    //         the actual new parent row id from Pass 1.
     if (tray_items?.length > 0) {
-      const { error: trayError } = await supabaseAdmin
+      const parentItems = tray_items.filter((item: any) => !item.is_condiment)
+      const condimentItems = tray_items.filter((item: any) => item.is_condiment)
+
+      function buildRow(item: any, sortOrder: number): any {
+        const pricingType = item.pricing_type || 'tray'
+
+        const unitPrice =
+          pricingType === 'per_person'  ? (item.per_person_price_cents || item.unit_price_cents || 0) :
+          pricingType === 'per_piece'   ? (item.per_piece_price_cents  || item.unit_price_cents || 0) :
+          (item.unit_price_cents || 0)
+
+        let totalPrice = 0
+        if (item.is_condiment) {
+          totalPrice = 0 // condiments are included in parent dish price, never charged separately
+        } else if (pricingType === 'per_person') {
+          totalPrice = (item.guest_count || 0) * unitPrice
+        } else if (pricingType === 'per_piece' || pricingType === 'per_gallon' || pricingType === 'per_portion') {
+          totalPrice = (item.piece_count || 0) * unitPrice
+        } else if (pricingType === 'tray') {
+          if (item.tray_size === 'custom') {
+            totalPrice = Math.round((item.tray_quantity || 1) * unitPrice)
+          } else {
+            totalPrice = unitPrice
+          }
+        }
+
+        return {
+          quote_id: quote.id,
+          dish_name: item.dish_name,
+          pricing_type: pricingType,
+          tray_size: item.tray_size || null,
+          tray_quantity: item.tray_quantity || null,
+          quantity: item.quantity || 1,
+          unit_price_cents: unitPrice,
+          total_price_cents: totalPrice,
+          guest_count: item.guest_count || null,
+          // FIX-003 (Jun 15 2026): piece_count was not being saved — caused WAS column
+          // in ReviewRoundsPanel to show "†" (dash) for per_piece and per_gallon items
+          piece_count: item.piece_count || null,
+          customer_comments: item.customer_comments || null,
+          notes_to_customer: item.notes_to_customer || null,  // FIX-026
+          sort_order: sortOrder,
+          // FIX-093: condiment fields
+          is_condiment: item.is_condiment || false,
+          parent_item_id: null, // resolved after Pass 1 for condiment rows
+          condiment_map_id: item.condiment_map_id || null,
+          show_on_quote: item.is_condiment ? !!item.show_on_quote : true,
+          condiment_qty: item.condiment_qty || null,
+          condiment_unit: item.condiment_unit || null,
+        }
+      }
+
+      // Pass 1: insert parent (non-condiment) rows
+      const { data: insertedParents, error: parentError } = await supabaseAdmin
         .from('quote_tray_items')
-        .insert(tray_items.map((item: any, i: number) => {
-          const pricingType = item.pricing_type || 'tray'
+        .insert(parentItems.map((item: any, i: number) => buildRow(item, i)))
+        .select('id, dish_name')
 
-          const unitPrice =
-            pricingType === 'per_person'  ? (item.per_person_price_cents || item.unit_price_cents || 0) :
-            pricingType === 'per_piece'   ? (item.per_piece_price_cents  || item.unit_price_cents || 0) :
-            (item.unit_price_cents || 0)
+      if (parentError) {
+        console.error('Tray items (parent) error:', parentError)
+        return NextResponse.json({ error: 'Tray items save failed: ' + parentError.message, parentError }, { status: 500 })
+      }
 
-          let totalPrice = 0
-          if (pricingType === 'per_person') {
-            totalPrice = (item.guest_count || 0) * unitPrice
-          } else if (pricingType === 'per_piece' || pricingType === 'per_gallon' || pricingType === 'per_portion') {
-            totalPrice = (item.piece_count || 0) * unitPrice
-          } else if (pricingType === 'tray') {
-            if (item.tray_size === 'custom') {
-              totalPrice = Math.round((item.tray_quantity || 1) * unitPrice)
-            } else {
-              totalPrice = unitPrice
-            }
-          }
+      // Build client-id → new-DB-id map by matching original array position
+      // (insertedParents comes back in the same order as parentItems was sent)
+      const oldIdToNewId: Record<string, string> = {}
+      parentItems.forEach((item: any, i: number) => {
+        if (item.id && insertedParents?.[i]) {
+          oldIdToNewId[item.id] = insertedParents[i].id
+        }
+      })
 
-          return {
-            quote_id: quote.id,
-            dish_name: item.dish_name,
-            pricing_type: pricingType,
-            tray_size: item.tray_size || null,
-            tray_quantity: item.tray_quantity || null,
-            quantity: item.quantity || 1,
-            unit_price_cents: unitPrice,
-            total_price_cents: totalPrice,
-            guest_count: item.guest_count || null,
-            // FIX-003 (Jun 15 2026): piece_count was not being saved — caused WAS column
-            // in ReviewRoundsPanel to show "†" (dash) for per_piece and per_gallon items
-            piece_count: item.piece_count || null,
-            customer_comments: item.customer_comments || null,
-            notes_to_customer: item.notes_to_customer || null,  // FIX-026
-            sort_order: i,
-          }
-        }))
-      if (trayError) {
-        console.error('Tray items error:', trayError)
-        return NextResponse.json({ error: 'Tray items save failed: ' + trayError.message, trayError }, { status: 500 })
+      // Pass 2: insert condiment rows with corrected parent_item_id
+      if (condimentItems.length > 0) {
+        const condimentRows = condimentItems.map((item: any, i: number) => {
+          const row = buildRow(item, parentItems.length + i)
+          row.parent_item_id = item.parent_item_id ? (oldIdToNewId[item.parent_item_id] || null) : null
+          return row
+        })
+
+        const { error: condError } = await supabaseAdmin
+          .from('quote_tray_items')
+          .insert(condimentRows)
+
+        if (condError) {
+          console.error('Tray items (condiment) error:', condError)
+          return NextResponse.json({ error: 'Condiment items save failed: ' + condError.message, condError }, { status: 500 })
+        }
       }
     }
 
