@@ -5,19 +5,22 @@
 @tailwind utilities;
 
 :root {
-  --ink: #05091A;
-  --royal: #0A1530;
-  --royal-mid: #0F1E40;
-  --gold: #C9A84C;
-  --gold-hi: #E2C87A;
-  --gold-pale: #F3E4B5;
-  --cream: #F6EDD8;
+  /* FIX-096 (Jun 19 2026): White theme. 'ink' stays dark (used for text-on-gold-button).
+     New 'paper' variable is the actual white page background. */
+  --ink: #1A1A1A;
+  --paper: #FFFFFF;
+  --royal: #FAF7EF;
+  --royal-mid: #F3ECDA;
+  --gold: #B8923A;
+  --gold-hi: #9C7A2E;
+  --gold-pale: #D9BC74;
+  --cream: #1A1A1A;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
-body { font-family: 'Jost', sans-serif; background: #05091A; color: #F6EDD8; }
-::selection { background: rgba(201,168,76,0.3); color: #F6EDD8; }
+body { font-family: 'Jost', sans-serif; background: #FFFFFF; color: #1A1A1A; }
+::selection { background: rgba(184,146,58,0.25); color: #1A1A1A; }
 
 @layer components {
   .btn-royal {
@@ -25,7 +28,7 @@ body { font-family: 'Jost', sans-serif; background: #05091A; color: #F6EDD8; }
            font-semibold px-12 py-4 border border-gold transition-all duration-300;
     clip-path: polygon(8px 0%, 100% 0, calc(100% - 8px) 100%, 0 100%);
   }
-  .btn-royal:hover { @apply bg-gold-hi; box-shadow: 0 0 36px rgba(201,168,76,0.3); }
+  .btn-royal:hover { @apply bg-gold-hi; box-shadow: 0 0 24px rgba(184,146,58,0.18); }
 
   .btn-ghost {
     @apply inline-block border border-gold/30 text-gold-hi font-cinzel text-[9px]
@@ -62,27 +65,31 @@ body { font-family: 'Jost', sans-serif; background: #05091A; color: #F6EDD8; }
   .font-cormorant { font-family: 'Cormorant', serif; }
   .font-cinzel { font-family: 'Cinzel', serif; }
   .font-cinzel-dec { font-family: 'Cinzel Decorative', serif; }
-  .text-gold { color: #C9A84C; }
-  .text-gold-hi { color: #E2C87A; }
-  .text-gold-pale { color: #F3E4B5; }
-  .text-cream { color: #F6EDD8; }
-  .bg-ink { background-color: #05091A; }
-  .bg-royal { background-color: #0A1530; }
-  .bg-royal-mid { background-color: #0F1E40; }
-  .bg-gold { background-color: #C9A84C; }
-  .bg-gold-hi { background-color: #E2C87A; }
-  .border-gold { border-color: #C9A84C; }
+  .text-gold { color: #B8923A; }
+  .text-gold-hi { color: #9C7A2E; }
+  .text-gold-pale { color: #D9BC74; }
+  .text-cream { color: #1A1A1A; }
+  /* FIX-096: bg-paper replaces bg-ink as the page background utility.
+     bg-ink intentionally NOT redefined here — Tailwind auto-generates it from
+     colors.ink (#1A1A1A) for the few places that might use it as a background,
+     though in practice this project only ever used bg-ink for page backgrounds,
+     which are now bg-paper after the mechanical find/replace (see CHANGELOG). */
+  .bg-paper { background-color: #FFFFFF; }
+  .bg-royal { background-color: #FAF7EF; }
+  .bg-royal-mid { background-color: #F3ECDA; }
+  .bg-gold { background-color: #B8923A; }
+  .bg-gold-hi { background-color: #9C7A2E; }
+  .border-gold { border-color: #B8923A; }
 }
 
 /* Fix date/time pickers visibility */
 input[type="date"],
 input[type="time"] {
-  color-scheme: dark;
-  color: #F6EDD8;
+  color-scheme: light;
+  color: #1A1A1A;
 }
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator {
-  filter: invert(1) sepia(1) saturate(2) hue-rotate(10deg);
-  opacity: 0.7;
+  opacity: 0.6;
   cursor: pointer;
 }

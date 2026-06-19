@@ -196,7 +196,7 @@ function CondimentPanel({ dishId, dishName, allCondiments }: { dishId: string; d
 
   const available = allCondiments.filter(c => !mappings.some(m => m.condiment_id === c.id))
 
-  if (loading) return <div className="text-[11px] text-cream/30 py-3">Loading condiments…</div>
+  if (loading) return <div className="text-[11px] text-cream/50 py-3">Loading condiments…</div>
 
   return (
     <div className="pt-3 pb-2 px-3 border-t border-amber-500/15 bg-amber-500/[0.03]">
@@ -205,7 +205,7 @@ function CondimentPanel({ dishId, dishName, allCondiments }: { dishId: string; d
       </div>
 
       {mappings.length === 0 ? (
-        <p className="text-cream/30 text-[12px] italic mb-3">No condiments linked yet.</p>
+        <p className="text-cream/50 text-[12px] italic mb-3">No condiments linked yet.</p>
       ) : (
         <div className="mb-3 border border-amber-500/15">
           <div className="grid grid-cols-12 gap-1 bg-royal-mid px-3 py-1.5 font-cinzel text-[7px] tracking-[0.15em] uppercase text-amber-300/60">
@@ -237,7 +237,7 @@ function CondimentPanel({ dishId, dishName, allCondiments }: { dishId: string; d
                     className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${m.show_on_quote ? 'bg-green-500' : 'bg-cream/15'}`}>
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-cream shadow transition-transform ${m.show_on_quote ? 'translate-x-4' : 'translate-x-0.5'}`} />
                   </button>
-                  <span className={`text-[10px] font-medium whitespace-nowrap ${m.show_on_quote ? 'text-green-400' : 'text-cream/30'}`}>
+                  <span className={`text-[10px] font-medium whitespace-nowrap ${m.show_on_quote ? 'text-green-400' : 'text-cream/50'}`}>
                     {m.show_on_quote ? 'Quote' : 'Kitchen'}
                   </span>
                 </div>
@@ -276,7 +276,7 @@ function CondimentPanel({ dishId, dishName, allCondiments }: { dishId: string; d
           {saving === 'add' ? '…' : 'Add'}
         </button>
       </div>
-      <p className="text-cream/25 text-[10.5px] mt-2">Default qty/unit are suggestions — admin adjusts per event on the quote.</p>
+      <p className="text-cream/60 text-[10.5px] mt-2">Default qty/unit are suggestions — admin adjusts per event on the quote.</p>
     </div>
   )
 }
@@ -333,7 +333,7 @@ function CondimentsMasterModal({ condiments, onClose, onUpdated }: { condiments:
       <div className="bg-royal-mid border border-gold/30 w-full max-w-md mx-4 max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gold/20">
           <h2 className="font-cinzel text-[9px] tracking-[0.3em] uppercase text-gold">Condiments Master List</h2>
-          <button onClick={onClose} className="text-cream/30 hover:text-cream text-xl">✕</button>
+          <button onClick={onClose} className="text-cream/50 hover:text-cream text-xl">✕</button>
         </div>
         <div className="overflow-y-auto flex-1 px-5 py-3">
           <p className="text-cream/40 text-[11.5px] mb-3">All condiments available to link to menu items.</p>
@@ -341,7 +341,7 @@ function CondimentsMasterModal({ condiments, onClose, onUpdated }: { condiments:
             {list.map((c, idx) => (
               <div key={c.id} className="flex items-center justify-between bg-royal px-3 py-2 border border-gold/10">
                 <div className="flex items-center gap-2">
-                  <span className="text-cream/30 text-[11px] w-5 text-right">{idx + 1}.</span>
+                  <span className="text-cream/50 text-[11px] w-5 text-right">{idx + 1}.</span>
                   <span className="text-cream text-[13px]">{c.name}</span>
                 </div>
                 <button onClick={() => deactivate(c.id)} className="text-[11px] text-red-400/50 hover:text-red-400 hover:underline">Remove</button>
@@ -517,7 +517,7 @@ export default function MasterMenuPage() {
   const sel = "w-full bg-royal border border-gold/20 text-cream font-jost text-[13px] outline-none px-2 py-2 focus:border-gold transition-colors"
 
   return (
-    <div className="min-h-screen bg-ink">
+    <div className="min-h-screen bg-paper">
       {/* Header */}
       <div className="bg-royal-mid border-b border-gold/20 px-8 py-5 flex items-center gap-4">
         <Link href="/admin" className="text-gold/50 hover:text-gold transition-colors"><ArrowLeft size={20} /></Link>
@@ -552,7 +552,7 @@ export default function MasterMenuPage() {
           <div className="border border-amber-500/30 bg-amber-500/5 p-5 mb-6">
             <div className="flex items-center justify-between mb-3">
               <span className="font-cinzel text-[9px] tracking-[0.35em] uppercase text-amber-300">💰 Bulk Edit Prices</span>
-              <button onClick={() => setShowBulkEdit(false)} className="text-cream/30 hover:text-cream text-xl">×</button>
+              <button onClick={() => setShowBulkEdit(false)} className="text-cream/50 hover:text-cream text-xl">×</button>
             </div>
             <p className="text-cream/50 text-[12px] mb-4">Update one price field for ALL items in a category at once.</p>
             <div className="grid grid-cols-4 gap-4 items-end">
@@ -597,7 +597,7 @@ export default function MasterMenuPage() {
           <div className="border border-gold/30 bg-royal-mid p-5 mb-6">
             <div className="flex items-center justify-between mb-4">
               <span className="font-cinzel text-[9px] tracking-[0.35em] uppercase text-gold">🗂️ Manage Categories</span>
-              <button onClick={() => setShowCatManager(false)} className="text-cream/30 hover:text-cream text-xl">×</button>
+              <button onClick={() => setShowCatManager(false)} className="text-cream/50 hover:text-cream text-xl">×</button>
             </div>
             <div className="flex flex-wrap gap-2 mb-5">
               {catOptions.map((c, i) => (
@@ -708,11 +708,11 @@ export default function MasterMenuPage() {
 
         {/* ── MENU TABLE ── */}
         {loading ? (
-          <div className="text-center py-20 text-cream/30 font-italiana text-[24px]">Loading menu...</div>
+          <div className="text-center py-20 text-cream/50 font-italiana text-[24px]">Loading menu...</div>
         ) : items.length === 0 ? (
           <div className="text-center py-20 border border-gold/20 bg-royal-mid">
-            <p className="font-italiana text-[28px] text-cream/30 mb-3">No menu items yet</p>
-            <p className="text-cream/20 text-[13px] mb-6">Run the SQL file in Supabase first, then items will appear here.</p>
+            <p className="font-italiana text-[28px] text-cream/50 mb-3">No menu items yet</p>
+            <p className="text-cream/60 text-[13px] mb-6">Run the SQL file in Supabase first, then items will appear here.</p>
             <button onClick={() => setShowAdd(true)} className="btn-royal">Add First Item</button>
           </div>
         ) : (
