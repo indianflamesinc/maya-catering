@@ -2,86 +2,79 @@
 
 ---
 
-## FIX-090 — Lazy Supabase client initialization (fixes blank /admin/menu page)
+## FIX-091 — Restore original Menu Master page + merge condiments in (not replace)
 **Session:** Jun 18, 2026
-**ZIP:** MAYA-FIX-090-Jun18-v1.zip
-**Fixes:** Blank page + "supabaseKey is required" crash on /admin/menu
+**ZIP:** MAYA-FIX-091-Jun18-v1.zip
+**Fixes:** Add Item / Edit / Categories / Bulk Edit features that were lost
+when the condiment feature (FIX-083) overwrote this file instead of
+extending it.
 
-### Symptom
-`/admin/menu` rendered completely blank (no header, no content, no error UI)
-in both regular browsing and a fresh Incognito window with cache-busting
-query params. Server logs showed `GET /admin/menu 200` with zero errors —
-the page shell loaded fine, but client-side JS crashed immediately on
-hydration with:
-```
-Uncaught Error: supabaseKey is required.
-    at new t$ (...)
-    at tx (...)
-```
+### What went wrong (FIX-083, two sessions ago)
+When building the condiment feature, Claude wrote a brand-new
+`/admin/menu/page.tsx` from assumptions about what the page should look
+like, instead of reading the existing file first. This **completely
+replaced** a fully-built page that already had:
+- Add New Item form (name, category, cuisine, pricing types, prices)
+- Inline Edit / Save / Cancel per dish row
+- Category Manager (add/remove categories)
+- Bulk Edit Prices (update one price field across an entire category)
+- Sort order controls (▲▼ per dish within category)
+- The project's actual dark royal/gold visual theme
+  (`bg-ink`, `bg-royal`, `text-gold`, `font-cinzel`, `font-italiana`)
+- Data fetched via `/api/menu-master` (not direct Supabase calls)
 
-### Investigation trail
-1. Verified `src/lib/supabase.ts` itself was correct (had the right env var names)
-2. Verified `page.tsx` only imported `{ supabase }`, no stray `createClient()` calls
-3. Verified Vercel Production domain WAS correctly pointed at the latest
-   successful deployment (fce1b54, FIX-089) — ruled out stale deployment
-4. Verified browser/CDN caching wasn't the cause — same error in Incognito
-   with `?t=12345` cache-buster
-5. Verified server-side rendering succeeded (200 OK, 0 server errors) —
-   ruled out a server-side data/query problem
-6. Compared against `/admin/page.tsx` (which works) — found the key
-   difference: `/admin` never imports `@/lib/supabase` directly; it only
-   calls `fetch('/api/enquiries')` and lets an API route handle Supabase.
-   `/admin/menu` was the **first page in the app to import `@/lib/supabase`
-   directly into a `'use client'` component.**
-
-### Root cause
-`src/lib/supabase.ts` constructed both Supabase clients as **module-level
-constants** at import time:
-```ts
-export const supabase = createClient(url, anon)          // ❌ runs at module load
-export const supabaseAdmin = createClient(url, service)  // ❌ runs at module load
-```
-This works reliably when the module is only ever imported into **server-side**
-code (API routes), where `process.env.*` is always fully available at
-execution time. But when imported into a **client component**, the call
-runs during webpack's client-bundle module evaluation — and depending on
-chunk-splitting, that evaluation can occur before Next.js's
-`NEXT_PUBLIC_*` inlining is guaranteed to have applied to that specific
-chunk. This produced an `undefined` anon key passed into `createClient()`,
-which throws synchronously.
+All of that was silently lost. The user caught this only after using the
+page and noticing Add/Edit/Category/Price controls were gone.
 
 ### Fix
-Rewrote `src/lib/supabase.ts` to lazily construct each client on first
-actual use, behind a `Proxy` so every existing call site (`supabase.from(...)`)
-continues to work completely unchanged — **no other file needed editing.**
-
-```ts
-let _supabase: SupabaseClient | null = null
-function getSupabase() {
-  if (!_supabase) _supabase = createClient(url, anon)
-  return _supabase
-}
-export const supabase = new Proxy({}, { get(_, prop) { return getSupabase()[prop] } })
-```
+Recovered the original file via `git show 36e8f54:src/app/admin/menu/page.tsx`
+(the commit immediately before the first condiment commit). Rebuilt the
+page by taking that original file **unchanged** and merging the condiment
+panel into it as an additive feature:
+- Every original function preserved verbatim: `saveEdit`, `deleteItem`,
+  `addItem`, `updateSortOrder`, `bulkUpdatePrice`, `startEdit`, category
+  manager, bulk price editor
+- Every original UI section preserved: header, bulk edit panel, category
+  manager panel, add item form, category filter pills, per-category dish
+  tables with inline edit
+- Condiments added as a **new expand/collapse chevron** on the left edge
+  of each dish row (doesn't disturb the existing grid column layout —
+  added as its own narrow column)
+- Condiment panel re-styled to match the existing dark royal/gold theme
+  instead of the generic light Tailwind classes used in the original
+  (wrong) condiment-only page
+- Condiment API calls switched from direct Supabase client calls to
+  `fetch('/api/menu-condiment-map')` / `fetch('/api/condiments')`,
+  matching the original page's pattern of using API routes rather than
+  importing `@/lib/supabase` directly into a client component (this is
+  also consistent with the FIX-090 lazy-client fix, since API routes use
+  `supabaseAdmin` server-side and never hit the client-bundle issue at all)
+- "🥣 Condiments List" button added next to existing "💰 Bulk Edit" and
+  "🗂️ Categories" buttons in the header, same visual style
 
 ### RULE for all future Claude sessions on this project
-**Never export a Supabase client as a module-level `const` created by
-calling `createClient()` directly at the top of the file.** Always lazily
-construct it inside a getter function, exposed via a `Proxy` (or returned
-from a function call at each use site). This guarantees env vars are
-read at actual call time, not at module-evaluation time, and makes the
-client safe to import into both server code AND client components.
+**Before writing or modifying ANY file in this project, always `view` (or
+`git show`) the current/existing version first — even if a feature seems
+like it should be straightforward to build standalone.** This project has
+substantial existing functionality (custom theme, bulk editors, category
+managers) that is not obvious from a database schema or a feature request
+alone. Overwriting a file instead of reading-then-extending it has now
+caused one full regression (this one) — never repeat this pattern.
 
 ### Files changed
 | File | Change |
 |------|--------|
-| `src/lib/supabase.ts` | Rewritten with lazy Proxy-based singletons. Drop-in replacement — `supabase.from(...)` and `supabaseAdmin.from(...)` syntax unchanged everywhere. |
+| `src/app/admin/menu/page.tsx` | Replaced FIX-090's condiment-only version with original file + condiments merged in as an additive panel. All original Add/Edit/Category/Bulk-Price functionality restored. |
 
-### Verified compatible with existing usage
-Confirmed via grep that 13 files currently call `createClient(` directly
-in API routes (those are unaffected — they construct their own clients
-inline and don't import from `lib/supabase.ts`). Only `lib/supabase.ts`
-itself needed to change.
+### Compatibility notes
+- No changes needed to `/api/menu-condiment-map` or `/api/condiments` —
+  both already used `supabaseAdmin` server-side, fully compatible
+- No changes needed to `/api/menu-master` — untouched, used exactly as
+  the original page used it
+- Theme colors (`bg-ink`, `bg-royal`, `bg-royal-mid`, `text-gold`,
+  `font-cinzel`, `font-italiana`, `text-cream`) assumed to be defined in
+  the project's Tailwind config already, since the original file used
+  them successfully before our changes
 
 ---
 
@@ -89,23 +82,27 @@ itself needed to change.
 
 ```bash
 cd /Users/ashok/PROJECTS/maya_catering_ent_web/maya-catering
-unzip ~/Downloads/MAYA-FIX-090-Jun18-v1.zip -d ~/Downloads/
-cp ~/Downloads/MAYA-FIX-090-Jun18-v1/supabase.ts src/lib/supabase.ts
-cp ~/Downloads/MAYA-FIX-090-Jun18-v1/CHANGELOG.md CHANGELOG.md
+unzip ~/Downloads/MAYA-FIX-091-Jun18-v1.zip -d ~/Downloads/
+cp ~/Downloads/MAYA-FIX-091-Jun18-v1/page.tsx src/app/admin/menu/page.tsx
+cp ~/Downloads/MAYA-FIX-091-Jun18-v1/CHANGELOG.md CHANGELOG.md
 
 git add .
-git commit -m "FIX-090: lazy Supabase client init - fixes blank /admin/menu page"
+git commit -m "FIX-091: restore original Menu Master (Add/Edit/Categories/Bulk Price) + merge condiments in"
 git push
 ```
 
-Wait for Vercel to deploy (~1 min), then test:
-1. Open `https://maya-catering.vercel.app/admin/menu` in a fresh tab
-2. Should now show "Menu Master" header, search box, dish list
-3. If dish list is empty — that's expected if `master_menu` table has no rows
-   yet (separate from this bug). Next step would be seeding menu items.
+### Test after deploy
+1. Open `/admin/menu` — verify "💰 Bulk Edit", "🗂️ Categories", "+ Add Item"
+   buttons are all back in the header alongside the new "🥣 Condiments List"
+2. Click "+ Add Item" — verify the full add-dish form still works
+3. Click the pencil icon on any dish — verify inline edit still works
+4. Click the new chevron (▸) on the left of any dish row — verify the
+   condiment panel expands below it, matching the dark theme
+5. Link a condiment to a dish (e.g. Idly → Coconut Chutney + Sambar) and
+   confirm it saves and persists on reload
 
 ---
 
+## Previous: FIX-090 — Lazy Supabase client init (fixes blank /admin/menu) (Jun 18 2026)
 ## Previous: FIX-089 — TypeScript fix, Supabase join returns array (Jun 17 2026)
 ## Previous: FIX-083 to FIX-088 — Condiment architecture (Jun 17 2026)
-## Previous: FIX-077 to FIX-082 — Kitchen Prep List initial build (Jun 17 2026)
