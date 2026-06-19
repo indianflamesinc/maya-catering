@@ -249,16 +249,27 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // FIX-095 (Jun 19 2026): select sort_order back — see id-matching fix below
       const { data: insertedParents, error: parentInsertError } = await supabase
         .from('quote_tray_items')
         .insert(parentItems.map((item: any, i: number) => buildItemRow(item, i)))
-        .select('id')
+        .select('id, sort_order')
 
       if (parentInsertError) throw new Error('Failed to save dish items: ' + parentInsertError.message)
 
+      // FIX-095 (Jun 19 2026): match by sort_order column, not array position.
+      // Same root cause and fix as quotes-route.ts — see that file's FIX-095 comment
+      // for the full explanation. Supabase bulk-insert return order is not guaranteed
+      // to match input array order, which caused condiments to attach to the wrong dish.
+      const sortOrderToNewId: Record<number, string> = {}
+      for (const row of insertedParents || []) {
+        sortOrderToNewId[row.sort_order] = row.id
+      }
       const oldIdToNewId: Record<string, string> = {}
       parentItems.forEach((item: any, i: number) => {
-        if (item.id && insertedParents?.[i]) oldIdToNewId[item.id] = insertedParents[i].id
+        if (item.id && sortOrderToNewId[i] !== undefined) {
+          oldIdToNewId[item.id] = sortOrderToNewId[i]
+        }
       })
 
       if (condimentItems.length > 0) {

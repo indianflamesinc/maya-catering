@@ -174,22 +174,35 @@ export async function POST(req: NextRequest) {
       }
 
       // Pass 1: insert parent (non-condiment) rows
+      // FIX-095 (Jun 19 2026): select sort_order back too — see id-matching fix below
       const { data: insertedParents, error: parentError } = await supabaseAdmin
         .from('quote_tray_items')
         .insert(parentItems.map((item: any, i: number) => buildRow(item, i)))
-        .select('id, dish_name')
+        .select('id, dish_name, sort_order')
 
       if (parentError) {
         console.error('Tray items (parent) error:', parentError)
         return NextResponse.json({ error: 'Tray items save failed: ' + parentError.message, parentError }, { status: 500 })
       }
 
-      // Build client-id → new-DB-id map by matching original array position
-      // (insertedParents comes back in the same order as parentItems was sent)
+      // FIX-095 (Jun 19 2026): match by sort_order column, NOT array position.
+      // BEFORE: assumed insertedParents[i] corresponds to parentItems[i] — this is an
+      //         UNVERIFIED assumption about Supabase/PostgREST bulk-insert return order,
+      //         which is not guaranteed to match input array order. In production this
+      //         caused condiment rows to attach to the WRONG parent dish (e.g. Pani Puri's
+      //         Mint Pani/Pani Poori condiments appeared nested under Chicken Biryani).
+      // AFTER:  sort_order is a value WE assigned deterministically per parentItems[i]
+      //         (sort_order: i). Build the id-map by looking up each returned row's own
+      //         sort_order column, which Postgres returns as real data — not by trusting
+      //         array position. This is correct regardless of what order rows come back in.
+      const sortOrderToNewId: Record<number, string> = {}
+      for (const row of insertedParents || []) {
+        sortOrderToNewId[row.sort_order] = row.id
+      }
       const oldIdToNewId: Record<string, string> = {}
       parentItems.forEach((item: any, i: number) => {
-        if (item.id && insertedParents?.[i]) {
-          oldIdToNewId[item.id] = insertedParents[i].id
+        if (item.id && sortOrderToNewId[i] !== undefined) {
+          oldIdToNewId[item.id] = sortOrderToNewId[i]
         }
       })
 

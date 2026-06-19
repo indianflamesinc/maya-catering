@@ -262,3 +262,110 @@ This only replaces 2 of the 7 files from FIX-093 — the other 5
 (`TrayItemsSection.tsx`, `quote-page.tsx`, `send-review-route.ts`,
 `review-token-page.tsx`, `reply-page.tsx`) are unaffected and don't need
 to be re-copied if FIX-093 was already partially applied.
+
+---
+
+## FIX-095 — Condiments attaching to wrong dish (unreliable insert-order assumption)
+**Session:** Jun 19, 2026
+**ZIP:** MAYA-FIX-095-Jun19-v1.zip
+**Fixes:** Condiments appearing under the wrong dish in email/review; condiment
+rows showing as full-price dish rows with comment boxes on the customer review
+page instead of the compact "Included" treatment.
+
+### Symptom (reported with screenshots)
+- Round 1 email showed Mint Pani + Pani Poori 2 Oz Cups nested under **Chicken
+  Biryani** — but those are Pani Puri's condiments. Raita (Biryani's actual
+  condiment) was missing entirely.
+- The customer review page rendered EVERY condiment (Tamarind Chutney, Mint
+  Chutney, Channa and Boiled Potatoes, Mint Pani, Mango Pani, Chopped Onion,
+  Pani Poori, Chopped Tomato) as a full dish row with its own comment box —
+  none of the indented/kitchen-only/"Included" treatment from FIX-093 appeared
+  at all, even though the build had deployed successfully.
+
+### Root cause
+FIX-093's two-pass insert (`quotes-route.ts` and `send-reply-route.ts`) matched
+newly-inserted parent dish rows to their original client-side data using
+**array index position**:
+```ts
+const { data: insertedParents } = await supabaseAdmin
+  .from('quote_tray_items').insert(parentItems.map(...)).select('id, dish_name')
+
+parentItems.forEach((item, i) => {
+  oldIdToNewId[item.id] = insertedParents[i].id   // ❌ assumes order is preserved
+})
+```
+This comment ("insertedParents comes back in the same order as parentItems was
+sent") was an **unverified assumption**, not a documented PostgREST/Supabase
+guarantee. In production, the bulk insert returned rows in a different order
+than they were sent, so `insertedParents[i]` did not correspond to
+`parentItems[i]`. Every condiment's `parent_item_id` got rewritten to point at
+the wrong dish — explaining exactly what was observed: Pani Puri's condiments
+attached to Biryani's row, Biryani's own condiment (Raita) vanished because its
+rewritten parent_item_id pointed at some other dish entirely, and depending on
+exact misalignment, some condiment rows may have ended up with `is_condiment`
+state effectively decoupled from what the review page expected.
+
+### Fix
+Match by `sort_order` instead of array position. `sort_order` is a value WE
+assign deterministically (`sort_order: i` for each parent item, in the exact
+order we're inserting them) and Postgres returns it as real column data on
+each row — so looking up `row.sort_order` is reliable regardless of what order
+the database hands rows back in:
+```ts
+const { data: insertedParents } = await supabaseAdmin
+  .from('quote_tray_items').insert(...).select('id, dish_name, sort_order')
+
+const sortOrderToNewId: Record<number, string> = {}
+for (const row of insertedParents || []) {
+  sortOrderToNewId[row.sort_order] = row.id
+}
+parentItems.forEach((item, i) => {
+  if (item.id && sortOrderToNewId[i] !== undefined) {
+    oldIdToNewId[item.id] = sortOrderToNewId[i]
+  }
+})
+```
+
+### RULE for all future Claude sessions
+**Never assume a Supabase/PostgREST bulk `.insert().select()` returns rows in
+the same order they were sent**, even though it often appears to in casual
+testing. Always match returned rows back to their source data using an actual
+column value you control (like `sort_order`, a unique slug, or similar) —
+never by array index/position. This applies to ANY bulk insert where you need
+to resolve relationships between rows in the same batch (e.g. parent-child
+foreign keys assigned post-insert).
+
+### Files changed
+| File | Change |
+|------|--------|
+| `src/app/api/quotes/route.ts` | Pass 1 insert now selects `sort_order` back; id-map built via `sort_order` lookup, not array index |
+| `src/app/api/quotes/send-reply/route.ts` | Same fix applied — identical bug pattern existed here independently |
+
+---
+
+## INSTALL (FIX-095 — replaces 2 files from FIX-093/094)
+
+```bash
+cd /Users/ashok/PROJECTS/maya_catering_ent_web/maya-catering
+unzip ~/Downloads/MAYA-FIX-095-Jun19-v1.zip -d ~/Downloads/
+
+cp ~/Downloads/MAYA-FIX-095-Jun19-v1/quotes-route.ts      src/app/api/quotes/route.ts
+cp ~/Downloads/MAYA-FIX-095-Jun19-v1/send-reply-route.ts  src/app/api/quotes/send-reply/route.ts
+cp ~/Downloads/MAYA-FIX-095-Jun19-v1/CHANGELOG.md         CHANGELOG.md
+
+git add .
+git commit -m "FIX-095: fix condiment parent-id matching - was using unreliable insert-order assumption"
+git push
+```
+
+### Test after deploy — IMPORTANT: existing quotes need re-saving
+Any quote saved BEFORE this fix may have condiment rows with wrong
+`parent_item_id` values already written to the DB. To get a clean test:
+1. Open the affected enquiry's Quote Builder
+2. Remove the dishes with condiments and re-add them via "Pick from Menu"
+   (this re-triggers the condiment fetch with correct linkage)
+3. Save Draft, then re-check: Chicken Biryani should show ↳ Raita; Pani Puri
+   should show ↳ Mint Pani + ↳ Pani Poori 2 Oz Cups — each under the CORRECT
+   parent dish this time
+4. Re-send to customer and verify the email + review page both show correct
+   pairing and correct kitchen-only/on-quote filtering
