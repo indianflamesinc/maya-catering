@@ -118,6 +118,7 @@ function CondimentPanel({ dishId, dishName, allCondiments }: { dishId: string; d
   const [addingQty, setAddingQty] = useState('1')
   const [addingUnit, setAddingUnit] = useState('Oz')
   const [saving, setSaving] = useState<string | null>(null)
+  const [addError, setAddError] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -137,23 +138,39 @@ function CondimentPanel({ dishId, dishName, allCondiments }: { dishId: string; d
       return
     }
     setSaving('add')
-    const res = await fetch('/api/menu-condiment-map', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        menu_item_id: dishId,
-        condiment_id: addingCondimentId,
-        default_qty: parseFloat(addingQty) || 1,
-        default_unit: addingUnit,
-        show_on_quote: false,
-        is_mandatory: true,
-        sort_order: mappings.length,
-      }),
-    })
-    const data = await res.json()
-    if (!data.error) {
+    setAddError('')
+    try {
+      const res = await fetch('/api/menu-condiment-map', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          menu_item_id: dishId,
+          condiment_id: addingCondimentId,
+          default_qty: parseFloat(addingQty) || 1,
+          default_unit: addingUnit,
+          show_on_quote: false,
+          is_mandatory: true,
+          sort_order: mappings.length,
+        }),
+      })
+      const text = await res.text()
+      let data: any
+      try {
+        data = JSON.parse(text)
+      } catch {
+        setAddError(`Server returned non-JSON (status ${res.status}): ${text.slice(0, 200)}`)
+        setSaving(null)
+        return
+      }
+      if (!res.ok || data.error) {
+        setAddError(data.error || `Request failed with status ${res.status}`)
+        setSaving(null)
+        return
+      }
       setMappings(prev => [...prev, data])
       setAddingCondimentId(''); setAddingQty('1'); setAddingUnit('Oz')
+    } catch (err: any) {
+      setAddError(err.message || 'Network error')
     }
     setSaving(null)
   }
@@ -240,6 +257,11 @@ function CondimentPanel({ dishId, dishName, allCondiments }: { dishId: string; d
       )}
 
       {/* Add row */}
+      {addError && (
+        <p className="text-red-400 text-[11px] mb-2 bg-red-500/10 border border-red-500/30 px-3 py-1.5">
+          ⚠ {addError}
+        </p>
+      )}
       <div className="flex items-center gap-2 flex-wrap">
         <select value={addingCondimentId} onChange={e => setAddingCondimentId(e.target.value)}
           className="flex-1 min-w-40 bg-royal border border-dashed border-gold/20 text-cream/70 text-[12px] outline-none px-3 py-1.5 focus:border-amber-400/40">
@@ -265,18 +287,36 @@ function CondimentsMasterModal({ condiments, onClose, onUpdated }: { condiments:
   const [newName, setNewName] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const [addError, setAddError] = useState('')
+
   const add = async () => {
     if (!newName.trim()) return
     setSaving(true)
-    const res = await fetch('/api/condiments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName.trim(), sort_order: list.length }),
-    })
-    const data = await res.json()
-    if (!data.error) {
+    setAddError('')
+    try {
+      const res = await fetch('/api/condiments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim(), sort_order: list.length }),
+      })
+      const text = await res.text()
+      let data: any
+      try {
+        data = JSON.parse(text)
+      } catch {
+        setAddError(`Server returned non-JSON (status ${res.status}): ${text.slice(0, 200)}`)
+        setSaving(false)
+        return
+      }
+      if (!res.ok || data.error) {
+        setAddError(data.error || `Request failed with status ${res.status}`)
+        setSaving(false)
+        return
+      }
       const updated = [...list, data]
       setList(updated); onUpdated(updated); setNewName('')
+    } catch (err: any) {
+      setAddError(err.message || 'Network error')
     }
     setSaving(false)
   }
@@ -310,6 +350,11 @@ function CondimentsMasterModal({ condiments, onClose, onUpdated }: { condiments:
           </div>
         </div>
         <div className="px-5 py-4 border-t border-gold/20">
+          {addError && (
+            <p className="text-red-400 text-[11.5px] mb-2 bg-red-500/10 border border-red-500/30 px-3 py-2">
+              ⚠ {addError}
+            </p>
+          )}
           <div className="flex gap-2">
             <input value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()}
               placeholder="New condiment name…"
