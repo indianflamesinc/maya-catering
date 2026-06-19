@@ -2,178 +2,110 @@
 
 ---
 
-## FIX-089 — Build Fix: TypeScript type error on Supabase join result
-**Session:** Jun 17, 2026
-**ZIP:** MAYA-CONDIMENTS-Jun17-v4.zip
-**Fixes build error from:** MAYA-CONDIMENTS-Jun17-v3.zip
+## FIX-090 — Lazy Supabase client initialization (fixes blank /admin/menu page)
+**Session:** Jun 18, 2026
+**ZIP:** MAYA-FIX-090-Jun18-v1.zip
+**Fixes:** Blank page + "supabaseKey is required" crash on /admin/menu
 
-### Error
+### Symptom
+`/admin/menu` rendered completely blank (no header, no content, no error UI)
+in both regular browsing and a fresh Incognito window with cache-busting
+query params. Server logs showed `GET /admin/menu 200` with zero errors —
+the page shell loaded fine, but client-side JS crashed immediately on
+hydration with:
 ```
-Type error: Conversion of type '{ condiments: { id: any; name: any; }[]; }[]'
-to type 'CondimentMap[]' may be a mistake because neither type sufficiently overlaps.
+Uncaught Error: supabaseKey is required.
+    at new t$ (...)
+    at tx (...)
 ```
+
+### Investigation trail
+1. Verified `src/lib/supabase.ts` itself was correct (had the right env var names)
+2. Verified `page.tsx` only imported `{ supabase }`, no stray `createClient()` calls
+3. Verified Vercel Production domain WAS correctly pointed at the latest
+   successful deployment (fce1b54, FIX-089) — ruled out stale deployment
+4. Verified browser/CDN caching wasn't the cause — same error in Incognito
+   with `?t=12345` cache-buster
+5. Verified server-side rendering succeeded (200 OK, 0 server errors) —
+   ruled out a server-side data/query problem
+6. Compared against `/admin/page.tsx` (which works) — found the key
+   difference: `/admin` never imports `@/lib/supabase` directly; it only
+   calls `fetch('/api/enquiries')` and lets an API route handle Supabase.
+   `/admin/menu` was the **first page in the app to import `@/lib/supabase`
+   directly into a `'use client'` component.**
 
 ### Root cause
-Supabase `.select('..., condiments(id, name)')` returns the joined relation as an
-**array** `{ id, name }[]` — even for a many-to-one join. Our `CondimentMap`
-interface declared `condiments` as a single object `{ id: string; name: string }`,
-which TypeScript correctly rejected.
+`src/lib/supabase.ts` constructed both Supabase clients as **module-level
+constants** at import time:
+```ts
+export const supabase = createClient(url, anon)          // ❌ runs at module load
+export const supabaseAdmin = createClient(url, service)  // ❌ runs at module load
+```
+This works reliably when the module is only ever imported into **server-side**
+code (API routes), where `process.env.*` is always fully available at
+execution time. But when imported into a **client component**, the call
+runs during webpack's client-bundle module evaluation — and depending on
+chunk-splitting, that evaluation can occur before Next.js's
+`NEXT_PUBLIC_*` inlining is guaranteed to have applied to that specific
+chunk. This produced an `undefined` anon key passed into `createClient()`,
+which throws synchronously.
 
-### RULE for all future Claude sessions
-When using Supabase nested select joins, the joined field is always typed as
-an array by the Supabase client, even for foreign key (many-to-one) joins:
-```ts
-// ❌ Wrong — TypeScript will reject this
-condiments: { id: string; name: string }
+### Fix
+Rewrote `src/lib/supabase.ts` to lazily construct each client on first
+actual use, behind a `Proxy` so every existing call site (`supabase.from(...)`)
+continues to work completely unchanged — **no other file needed editing.**
 
-// ✅ Correct — allow both shapes, normalize at point of use
-condiments: { id: string; name: string } | { id: string; name: string }[]
-```
-And at the point of use, normalize:
 ```ts
-const name = Array.isArray(m.condiments) ? m.condiments[0]?.name : m.condiments?.name
+let _supabase: SupabaseClient | null = null
+function getSupabase() {
+  if (!_supabase) _supabase = createClient(url, anon)
+  return _supabase
+}
+export const supabase = new Proxy({}, { get(_, prop) { return getSupabase()[prop] } })
 ```
-And when casting query results, always go through `unknown` first:
-```ts
-setMappings((data as unknown as CondimentMap[]) || [])
-```
+
+### RULE for all future Claude sessions on this project
+**Never export a Supabase client as a module-level `const` created by
+calling `createClient()` directly at the top of the file.** Always lazily
+construct it inside a getter function, exposed via a `Proxy` (or returned
+from a function call at each use site). This guarantees env vars are
+read at actual call time, not at module-evaluation time, and makes the
+client safe to import into both server code AND client components.
 
 ### Files changed
-`src/app/admin/menu/page.tsx`:
-- `CondimentMap.condiments` type widened to accept array or object
-- `setMappings` cast changed to `as unknown as CondimentMap[]`
-- Insert result cast changed to `as unknown as CondimentMap`
-- `condiments?.name` accessor normalized via `Array.isArray()` check
-
----
-
-## FIX-088 — Build Fix: Supabase import path correction
-**Session:** Jun 17, 2026
-**ZIP:** MAYA-CONDIMENTS-Jun17-v3.zip
-**Fixes build error from:** MAYA-CONDIMENTS-Jun17-v2.zip
-
-### Problem
-Vercel build failed with:
-```
-Module not found: Can't resolve '@/lib/supabase/client'
-```
-
-### Root cause
-Generated code used `@/lib/supabase/client` and `@/lib/supabase/server` —
-standard Supabase SSR helper paths that do NOT exist in this project.
-
-### How this project actually works
-`src/lib/supabase.ts` exports TWO named instances:
-- `supabase` — anon key client, use in client components ('use client')
-- `supabaseAdmin` — service role client, use in API routes (server-side)
-
-**RULE for all future Claude sessions — NEVER write:**
-```ts
-import { createClient } from '@/lib/supabase/client'   // ❌ does not exist
-import { createClient } from '@/lib/supabase/server'   // ❌ does not exist
-```
-
-**ALWAYS write:**
-```ts
-// In 'use client' components:
-import { supabase } from '@/lib/supabase'              // ✅
-
-// In API routes (src/app/api/...):
-import { supabaseAdmin } from '@/lib/supabase'         // ✅
-```
-
-### Files fixed
 | File | Change |
 |------|--------|
-| `src/app/admin/menu/page.tsx` | `import { supabase } from '@/lib/supabase'` |
-| `src/app/api/condiments/route.ts` | `import { supabaseAdmin as supabase } from '@/lib/supabase'` |
-| `src/app/api/menu-condiment-map/route.ts` | `import { supabaseAdmin as supabase } from '@/lib/supabase'` |
-| `src/lib/condiment-resolver.ts` | Removed incorrect import — supabase passed in as param |
+| `src/lib/supabase.ts` | Rewritten with lazy Proxy-based singletons. Drop-in replacement — `supabase.from(...)` and `supabaseAdmin.from(...)` syntax unchanged everywhere. |
+
+### Verified compatible with existing usage
+Confirmed via grep that 13 files currently call `createClient(` directly
+in API routes (those are unaffected — they construct their own clients
+inline and don't import from `lib/supabase.ts`). Only `lib/supabase.ts`
+itself needed to change.
 
 ---
 
-## FIX-083 to FIX-087 — Condiment Architecture (Menu Master → Quote → Kitchen)
-**Session:** Jun 17, 2026
-**ZIP:** MAYA-CONDIMENTS-Jun17-v3.zip (previously v1, v2 — use v3 only)
+## INSTALL
 
-### Why this was built
-Previously condiment logic was hardcoded in the Kitchen Prep List page —
-10 name-matching rules like "if dish contains 'samosa' → add mint chutney".
-This was fragile: any new dish required a code change, spelling had to match
-exactly, and the quote had zero condiment awareness.
+```bash
+cd /Users/ashok/PROJECTS/maya_catering_ent_web/maya-catering
+unzip ~/Downloads/MAYA-FIX-090-Jun18-v1.zip -d ~/Downloads/
+cp ~/Downloads/MAYA-FIX-090-Jun18-v1/supabase.ts src/lib/supabase.ts
+cp ~/Downloads/MAYA-FIX-090-Jun18-v1/CHANGELOG.md CHANGELOG.md
 
-### Architecture after this change
-Condiments defined ONCE in menu master → flow through quote → read by kitchen prep.
-No logic duplication anywhere downstream.
-
-```
-master_menu
-  ↓ menu_condiment_map
-    (which condiments, default qty, default unit, show_on_quote, is_mandatory)
-quote_tray_items
-  (condiment rows auto-inserted when dish added — is_condiment=true)
-  ↓
-kitchen_prep_items
-  (reads condiment rows from quote — zero logic in prep page)
+git add .
+git commit -m "FIX-090: lazy Supabase client init - fixes blank /admin/menu page"
+git push
 ```
 
-### FIX-083 | Supabase tables
-**File:** `supabase/migrations/20260617_condiments_v2.sql`
-
-- `condiments` table: id, name, is_active, sort_order. Simple master list.
-  - 17 condiments seeded (Mint Chutney, Tamarind Chutney, Coconut Chutney,
-    Sambar, Raita, Manchurian Sauce, Schezwan Sauce, Ketchup,
-    Lemon & Sliced Onion, Mint Pani, Mango Pani, Potato & Channa Filling,
-    Cilantro & Cut Onion, Ghee, Pickle, Salan, Mirchi Ka Salan)
-- `menu_condiment_map` table: links dishes to condiments with:
-  - `default_qty NUMERIC` — suggested quantity (admin overrides per event)
-  - `default_unit TEXT` — free text: "32 Oz", "Half Tray", "1 Gallon" etc.
-  - `show_on_quote BOOLEAN` — Option C: TRUE=customer sees it, FALSE=kitchen only
-  - `is_mandatory BOOLEAN` — Must/Optional badge
-  - `sort_order INTEGER` — display order under dish
-  - UNIQUE(menu_item_id, condiment_id) — no duplicate condiments per dish
-- `quote_tray_items` new columns (IF NOT EXISTS — safe to re-run):
-  - `is_condiment BOOLEAN` — marks row as condiment child
-  - `parent_item_id UUID` — soft ref to parent dish row
-  - `condiment_map_id UUID` — traceability back to menu_condiment_map
-  - `show_on_quote BOOLEAN` — copied from map, overridable per quote
-  - `condiment_qty TEXT` — actual qty (may differ from default)
-  - `condiment_unit TEXT` — actual unit (may differ from default)
-- RLS disabled on both new tables (consistent with all MAYA Platform tables)
-
-### FIX-084 | Condiments CRUD API
-**File:** `src/app/api/condiments/route.ts`
-- GET — list all active condiments
-- POST — add new condiment
-- PATCH — rename/update
-- DELETE — soft delete (is_active=false), preserves existing links
-
-### FIX-085 | Menu Condiment Map API
-**File:** `src/app/api/menu-condiment-map/route.ts`
-- GET ?menu_item_id=xxx — all condiments for a dish (with name joined)
-- POST — link condiment to dish with default qty/unit/settings
-- PATCH — update any field on a link row
-- DELETE ?id=xxx — unlink condiment from dish
-
-### FIX-086 | Menu Admin page — condiment panel
-**File:** `src/app/admin/menu/page.tsx`
-- Each dish row has ▸ expand toggle → opens condiment panel inline
-- Condiment panel table: Name | Default Qty | Unit | Show on Quote | Required | Remove
-- Unit field: standard dropdown (Oz / Gallon / Tray / Piece) + "Custom…"
-  reveals free-text input for any value (32 Oz, 2 Gallon, Half Tray, etc.)
-- Show on Quote: green toggle = customer sees it / grey = kitchen-only
-- Required badge: Must (red) = cannot remove from quote / Opt (grey) = optional
-- All saves instant on field change — no separate Save button
-- "🥣 Manage Condiments List" opens master modal — add/remove from global pool
-
-### FIX-087 | Condiment resolver utility
-**File:** `src/lib/condiment-resolver.ts`
-- Reads default_qty + default_unit directly from menu_condiment_map
-- No calculation logic — values come straight from DB as set in menu master
-- Used by quote builder when a dish is added to pre-fill condiment rows
-- Accepts supabase client as parameter (works client-side and server-side)
+Wait for Vercel to deploy (~1 min), then test:
+1. Open `https://maya-catering.vercel.app/admin/menu` in a fresh tab
+2. Should now show "Menu Master" header, search box, dish list
+3. If dish list is empty — that's expected if `master_menu` table has no rows
+   yet (separate from this bug). Next step would be seeding menu items.
 
 ---
 
+## Previous: FIX-089 — TypeScript fix, Supabase join returns array (Jun 17 2026)
+## Previous: FIX-083 to FIX-088 — Condiment architecture (Jun 17 2026)
 ## Previous: FIX-077 to FIX-082 — Kitchen Prep List initial build (Jun 17 2026)
-## Previous: FIX-069 to FIX-076 — WhatsApp, TrayQtyInput, badge fixes (Jun 17 2026)
