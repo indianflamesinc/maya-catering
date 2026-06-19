@@ -11,16 +11,16 @@
   --paper: #FFFFFF;
   --royal: #FAF7EF;
   --royal-mid: #F3ECDA;
-  --gold: #B8923A;
-  --gold-hi: #9C7A2E;
-  --gold-pale: #D9BC74;
+  --gold: #8A6A1F;
+  --gold-hi: #6B4F0E;
+  --gold-pale: #C9A050;
   --cream: #1A1A1A;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 body { font-family: 'Jost', sans-serif; background: #FFFFFF; color: #1A1A1A; }
-::selection { background: rgba(184,146,58,0.25); color: #1A1A1A; }
+::selection { background: rgba(138,106,31,0.25); color: #1A1A1A; }
 
 @layer components {
   .btn-royal {
@@ -28,7 +28,7 @@ body { font-family: 'Jost', sans-serif; background: #FFFFFF; color: #1A1A1A; }
            font-semibold px-12 py-4 border border-gold transition-all duration-300;
     clip-path: polygon(8px 0%, 100% 0, calc(100% - 8px) 100%, 0 100%);
   }
-  .btn-royal:hover { @apply bg-gold-hi; box-shadow: 0 0 24px rgba(184,146,58,0.18); }
+  .btn-royal:hover { @apply bg-gold-hi; box-shadow: 0 0 24px rgba(138,106,31,0.18); }
 
   .btn-ghost {
     @apply inline-block border border-gold/30 text-gold-hi font-cinzel text-[9px]
@@ -65,9 +65,9 @@ body { font-family: 'Jost', sans-serif; background: #FFFFFF; color: #1A1A1A; }
   .font-cormorant { font-family: 'Cormorant', serif; }
   .font-cinzel { font-family: 'Cinzel', serif; }
   .font-cinzel-dec { font-family: 'Cinzel Decorative', serif; }
-  .text-gold { color: #B8923A; }
-  .text-gold-hi { color: #9C7A2E; }
-  .text-gold-pale { color: #D9BC74; }
+  .text-gold { color: #8A6A1F; }
+  .text-gold-hi { color: #6B4F0E; }
+  .text-gold-pale { color: #C9A050; }
   .text-cream { color: #1A1A1A; }
   /* FIX-096: bg-paper replaces bg-ink as the page background utility.
      bg-ink intentionally NOT redefined here — Tailwind auto-generates it from
@@ -77,9 +77,9 @@ body { font-family: 'Jost', sans-serif; background: #FFFFFF; color: #1A1A1A; }
   .bg-paper { background-color: #FFFFFF; }
   .bg-royal { background-color: #FAF7EF; }
   .bg-royal-mid { background-color: #F3ECDA; }
-  .bg-gold { background-color: #B8923A; }
-  .bg-gold-hi { background-color: #9C7A2E; }
-  .border-gold { border-color: #B8923A; }
+  .bg-gold { background-color: #8A6A1F; }
+  .bg-gold-hi { background-color: #6B4F0E; }
+  .border-gold { border-color: #8A6A1F; }
 }
 
 /* Fix date/time pickers visibility */

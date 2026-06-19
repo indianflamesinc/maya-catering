@@ -4,7 +4,7 @@
 
 ## FIX-096 — White theme: TEST DEPLOY on /admin/menu only
 **Session:** Jun 19, 2026
-**ZIP:** MAYA-FIX-096-Jun19-v1-TEST.zip
+**ZIP:** MAYA-FIX-096-097-Jun19-v2-TEST.zip
 **Scope:** Preview only — 3 files. NOT yet rolled out to the other 21 pages/components.
 
 ### What this is
@@ -79,16 +79,72 @@ instance) — verified via `grep -c` before/after (1 → 0 remaining `bg-ink`,
 
 ---
 
+## FIX-097 — Darker gold for real text contrast + semantic token layer added
+**Session:** Jun 19, 2026
+**ZIP:** MAYA-FIX-096-097-Jun19-v2-TEST.zip (same zip, updated)
+
+### Problem reported (with screenshot)
+Category filter pill labels ("CHAAT & LIVE STATIONS", "SOUTH INDIAN" etc.)
+were too low-contrast / hard to read against white. Root cause: `gold`
+(`#B8923A`) was tuned for "acceptable on small uppercase labels" (2.91:1) in
+FIX-096, but it's actually used as the PRIMARY text color for unselected
+category pills, section headings, and field labels throughout the app — not
+just decorative accents. 2.91:1 is genuinely too low for that much reading.
+
+### Fix — darker gold
+| Token | FIX-096 value | FIX-097 value | Contrast on white |
+|-------|---------------|----------------|---------------------|
+| `gold` | `#B8923A` (2.91:1) | `#8A6A1F` | **5.05:1** (pass) |
+| `gold-hi` | `#9C7A2E` (4.01:1) | `#6B4F0E` | **7.64:1** (pass) |
+| `gold-pale` | `#D9BC74` | `#C9A050` | (decorative accent, not text-critical) |
+
+Note: `btn-royal`'s dark text on gold background dropped from 5.98:1 to
+3.45:1 with the darker gold — still passes AA for bold/large UI text (3:1
+threshold, and button labels are bold+tracked+uppercase) but is worth
+revisiting if it looks borderline in person. Did not change `text-ink` to
+white-on-gold instead, since that token is shared across 28 call sites in
+10 files and swapping it deserves its own deliberate pass, not a same-night
+add-on to an already multi-layered fix.
+
+### Semantic token layer (requested) — added, not yet applied to markup
+Per request: rather than re-tuning raw colors at 600+ scattered call sites
+every time contrast needs adjusting, a semantic layer was added to
+`tailwind.config.ts`:
+```
+text-title, text-label, text-body, text-muted, text-hint,
+surface-page, surface-card, surface-panel, accent, accent-hover
+```
+These are NEW aliases pointing at the same hex values as the existing raw
+tokens (e.g. `text-label` = `gold` = `#8A6A1F`). Nothing was renamed or
+removed — every existing `bg-royal`, `text-gold`, `text-cream/40` etc.
+class still works exactly as before. The new names exist so that future
+adjustments can target one role ("make all labels darker") via one config
+line, instead of grep-and-replace across 22 files.
+
+Not yet wired into any markup. Rolling these into actual className
+strings is a separate, deliberate next step — doing it section-by-section
+with visual review, not a blanket find-replace, since (as this exact bug
+demonstrated) automated swaps without checking actual rendered contrast
+is exactly what causes these issues in the first place.
+
+### Files changed
+| File | Change |
+|------|--------|
+| `tailwind.config.ts` | Gold family darkened; semantic token layer added (additive only) |
+| `src/app/globals.css` | Hardcoded gold hex values in @layer utilities and ::selection/glow updated to match |
+
+---
+
 ## INSTALL (TEST ONLY — confirm the look before going further)
 
 ```bash
 cd /Users/ashok/PROJECTS/maya_catering_ent_web/maya-catering
-unzip ~/Downloads/MAYA-FIX-096-Jun19-v1-TEST.zip -d ~/Downloads/
+unzip ~/Downloads/MAYA-FIX-096-097-Jun19-v2-TEST.zip -d ~/Downloads/
 
-cp ~/Downloads/MAYA-FIX-096-Jun19-v1-TEST/tailwind.config.ts  tailwind.config.ts
-cp ~/Downloads/MAYA-FIX-096-Jun19-v1-TEST/globals.css         src/app/globals.css
-cp ~/Downloads/MAYA-FIX-096-Jun19-v1-TEST/page.tsx            src/app/admin/menu/page.tsx
-cp ~/Downloads/MAYA-FIX-096-Jun19-v1-TEST/CHANGELOG.md        CHANGELOG.md
+cp ~/Downloads/MAYA-FIX-096-097-Jun19-v2-TEST/tailwind.config.ts  tailwind.config.ts
+cp ~/Downloads/MAYA-FIX-096-097-Jun19-v2-TEST/globals.css         src/app/globals.css
+cp ~/Downloads/MAYA-FIX-096-097-Jun19-v2-TEST/page.tsx            src/app/admin/menu/page.tsx
+cp ~/Downloads/MAYA-FIX-096-097-Jun19-v2-TEST/CHANGELOG.md        CHANGELOG.md
 
 git add .
 git commit -m "FIX-096 TEST: white theme preview on /admin/menu only"
