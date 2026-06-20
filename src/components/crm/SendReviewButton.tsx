@@ -89,7 +89,7 @@ export function SendReviewButton({ enquiryId, quoteId, customerName, customerEma
                 href={result.reviewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-block mt-2 text-xs text-[#C9A84C] underline hover:text-[#E2C87A]"
+                className="inline-block mt-2 text-xs text-gold underline hover:text-gold-hi"
               >
                 👁 Preview customer review page →
               </a>
@@ -171,7 +171,7 @@ export function SendReviewButton({ enquiryId, quoteId, customerName, customerEma
           flex items-center gap-2 rounded-lg px-5 py-3 font-semibold text-sm transition-all
           ${confirmed
             ? 'bg-green-600 text-white hover:bg-green-700'
-            : 'bg-[#C9A84C] text-[#05091A] hover:bg-[#E2C87A]'
+            : 'bg-gold text-ink hover:bg-gold-hi'
           }
           disabled:opacity-60 disabled:cursor-not-allowed
         `}

@@ -96,7 +96,7 @@ function PriceInput({ cents, onChange }: { cents: number; onChange: (c: number) 
         }
       }}
       onBlur={() => { const n = parseFloat(raw); setRaw(!isNaN(n) ? n.toFixed(2) : '') }}
-      className="bg-[#0a1428] border border-gold/30 text-cream font-jost text-[13px] outline-none px-2 py-1.5 focus:border-gold transition-colors w-full text-right rounded-sm" />
+      className="bg-royal-mid border border-gold/30 text-cream font-jost text-[13px] outline-none px-2 py-1.5 focus:border-gold transition-colors w-full text-right rounded-sm" />
   )
 }
 
@@ -115,7 +115,7 @@ function QtyInput({ value, onChange, unit }: { value: number; onChange: (v: numb
           }
         }}
         onBlur={() => { const n = parseFloat(raw); setRaw(!isNaN(n) ? String(n) : '') }}
-        className="bg-[#0a1428] border border-gold/30 text-cream font-jost text-[13px] outline-none px-2 py-1.5 focus:border-gold transition-colors w-full text-right rounded-sm" />
+        className="bg-royal-mid border border-gold/30 text-cream font-jost text-[13px] outline-none px-2 py-1.5 focus:border-gold transition-colors w-full text-right rounded-sm" />
       <span className="text-cream/30 text-[10px] flex-shrink-0">{unit}</span>
     </div>
   )
@@ -259,11 +259,11 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
                 placeholder="Condiment name..." />
               <input value={item.condiment_qty || ''}
                 onChange={e => updateItem(item.id, { condiment_qty: e.target.value })}
-                className="bg-[#0a1428] border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-14 text-center rounded-sm"
+                className="bg-royal-mid border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-14 text-center rounded-sm"
                 placeholder="Qty" />
               <input value={item.condiment_unit || ''}
                 onChange={e => updateItem(item.id, { condiment_unit: e.target.value })}
-                className="bg-[#0a1428] border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-20 rounded-sm"
+                className="bg-royal-mid border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-20 rounded-sm"
                 placeholder="Unit" />
               <button onClick={() => toggleCondimentVisibility(item.id)}
                 title={item.show_on_quote ? 'Visible to customer — click to hide' : 'Kitchen-only — click to show on quote'}
@@ -286,7 +286,7 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
         return (
           <div key={item.id} className="mb-1">
             <div
-              className={`grid gap-3 items-center px-2 py-3 border border-gold/10 rounded-sm transition-colors hover:border-gold/25 ${isEven ? 'bg-[#071020]' : 'bg-[#090f1e]'}`}
+              className={`grid gap-3 items-center px-2 py-3 border border-gold/10 rounded-sm transition-colors hover:border-gold/25 ${isEven ? 'bg-royal' : 'bg-royal-mid'}`}
               style={colStyle}>
 
               {/* Dish name */}
@@ -308,7 +308,7 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
               {/* Pricing type */}
               <select value={item.pricing_type}
                 onChange={e => updateItem(item.id, { pricing_type: e.target.value as PricingType })}
-                className="bg-[#0a1428] border border-gold/30 text-cream font-jost font-light text-[12px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm">
+                className="bg-royal-mid border border-gold/30 text-cream font-jost font-light text-[12px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm">
                 {PRICING_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
 
@@ -316,7 +316,7 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
               {item.pricing_type === 'tray' ? (
                 <select value={item.tray_size}
                   onChange={e => updateItem(item.id, { tray_size: e.target.value as TraySize })}
-                  className="bg-[#0a1428] border border-gold/30 text-cream font-jost font-light text-[12px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm">
+                  className="bg-royal-mid border border-gold/30 text-cream font-jost font-light text-[12px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm">
                   {TRAY_SIZES.map(s => <option key={s.value} value={s.value}>{s.label} ({s.note})</option>)}
                 </select>
               ) : (

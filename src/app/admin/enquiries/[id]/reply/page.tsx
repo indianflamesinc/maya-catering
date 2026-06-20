@@ -97,7 +97,7 @@ function getQtyDisplay(item: DishItem): string {
   return '1'
 }
 
-const numInp = "bg-[#0a1428] border border-gold/20 text-cream font-jost text-[13px] outline-none px-2 py-1.5 focus:border-gold transition-colors w-full text-right"
+const numInp = "bg-royal-mid border border-gold/20 text-cream font-jost text-[13px] outline-none px-2 py-1.5 focus:border-gold transition-colors w-full text-right"
 
 // FIX-073 v5 (Jun 17 2026): TrayQtyInput — raw string state prevents mid-type resets
 // e.g. typing "2.75": "2" → "2." → "2.7" → "2.75" all work without snapping back
@@ -131,7 +131,7 @@ function TrayQtyInput({ value, onChange }: { value: number; onChange: (v: number
           }
         }}
         style={{ width: 80 }}
-        className="bg-[#0a1428] border border-gold/30 text-cream font-jost text-[13px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm text-right"
+        className="bg-royal-mid border border-gold/30 text-cream font-jost text-[13px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm text-right"
       />
       <span className="text-cream/40 text-[10px]">×</span>
     </div>
@@ -615,11 +615,11 @@ export default function ReplyBuilderPage() {
                       placeholder="Condiment name..." />
                     <input value={item.condiment_qty || ''}
                       onChange={e => updateItem(item.id, { condiment_qty: e.target.value })}
-                      className="bg-[#0a1428] border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-14 text-center rounded-sm"
+                      className="bg-royal-mid border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-14 text-center rounded-sm"
                       placeholder="Qty" />
                     <input value={item.condiment_unit || ''}
                       onChange={e => updateItem(item.id, { condiment_unit: e.target.value })}
-                      className="bg-[#0a1428] border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-20 rounded-sm"
+                      className="bg-royal-mid border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-20 rounded-sm"
                       placeholder="Unit" />
                     <button onClick={() => updateItem(item.id, { show_on_quote: !item.show_on_quote })}
                       title={item.show_on_quote ? 'Visible to customer — click to hide' : 'Kitchen-only — click to show on quote'}
@@ -641,7 +641,7 @@ export default function ReplyBuilderPage() {
               return (
                 <div key={item.id} className={`border rounded-sm overflow-hidden ${hasComment ? 'border-yellow-500/30' : 'border-gold/20'}`}>
                   {/* Dish row */}
-                  <div className={`px-5 py-4 ${hasComment ? 'bg-[#1a1200]' : idx % 2 === 0 ? 'bg-[#071020]' : 'bg-[#090f1e]'}`}>
+                  <div className={`px-5 py-4 ${hasComment ? 'bg-[#1a1200]' : idx % 2 === 0 ? 'bg-royal' : 'bg-royal-mid'}`}>
                     <div className="grid gap-4 items-start" style={{ gridTemplateColumns: '2fr 120px 120px 110px 110px 28px' }}>
                       <div>
                         <input value={item.dish_name}
@@ -656,7 +656,7 @@ export default function ReplyBuilderPage() {
                       {/* Pricing type */}
                       <select value={item.pricing_type}
                         onChange={e => updateItem(item.id, { pricing_type: e.target.value as PricingType })}
-                        className="bg-[#0a1428] border border-gold/20 text-cream font-jost text-[11px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm">
+                        className="bg-royal-mid border border-gold/20 text-cream font-jost text-[11px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm">
                         {[
                           { v: 'tray', l: 'Per Tray' }, { v: 'per_person', l: 'Per Person' },
                           { v: 'per_piece', l: 'Per Piece' }, { v: 'per_gallon', l: 'Per Gallon' },
@@ -669,7 +669,7 @@ export default function ReplyBuilderPage() {
                         {item.pricing_type === 'tray' ? (
                           <select value={item.tray_size}
                             onChange={e => updateItem(item.id, { tray_size: e.target.value as TraySize })}
-                            className="bg-[#0a1428] border border-gold/20 text-cream font-jost text-[11px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm w-full">
+                            className="bg-royal-mid border border-gold/20 text-cream font-jost text-[11px] outline-none px-2 py-1.5 focus:border-gold transition-colors rounded-sm w-full">
                             {[
                               { v: 'half', l: 'Small (½)' }, { v: 'medium', l: 'Medium (¾)' },
                               { v: 'full', l: 'Full Tray' }, { v: 'custom', l: 'Multiple' },

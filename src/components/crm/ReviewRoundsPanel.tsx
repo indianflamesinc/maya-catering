@@ -215,9 +215,9 @@ export function ReviewRoundsPanel({ enquiryId, quoteId, onRoundUpdate, customerP
 
               {/* Action buttons for latest pending_maya round */}
               {isLatest && (round.status === 'pending_maya' || round.status === 'submitted') && (
-                <div className="px-4 py-4 bg-[#05091A] flex flex-wrap gap-2">
+                <div className="px-4 py-4 bg-royal-mid flex flex-wrap gap-2">
                   <Link href={`/admin/enquiries/${enquiryId}/reply`}
-                    className="rounded bg-[#C9A84C] px-5 py-2.5 font-cinzel text-[7.5px] tracking-[0.15em] uppercase text-[#05091A] hover:bg-[#E2C87A] transition-colors flex items-center gap-2">
+                    className="rounded bg-gold px-5 py-2.5 font-cinzel text-[7.5px] tracking-[0.15em] uppercase text-ink hover:bg-gold-hi transition-colors flex items-center gap-2">
                     ✏️ Open Reply Builder — Send Round {round.round_number + 1}
                   </Link>
                   <button onClick={() => handleAccept(round.id)} disabled={!!actionLoading}
