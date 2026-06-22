@@ -539,7 +539,7 @@ export default function ReplyBuilderPage() {
 
   if (error && !latestRound) return (
     <div className="min-h-screen bg-ink flex items-center justify-center flex-col gap-4">
-      <p className="text-red-400 text-[14px]">{error}</p>
+      <p className="text-red-700 text-[14px]">{error}</p>
       <Link href={`/admin/enquiries/${id}`} className="font-cinzel text-[8px] tracking-[0.2em] uppercase border border-gold/30 text-gold px-4 py-2">← Back</Link>
     </div>
   )
@@ -574,7 +574,7 @@ export default function ReplyBuilderPage() {
         )}
       </div>
 
-      {error && <div className="mx-8 mt-4 border border-red-500/40 bg-red-500/10 px-5 py-3 text-red-400 text-[13px]">{error}</div>}
+      {error && <div className="mx-8 mt-4 border border-red-500/40 bg-red-500/10 px-5 py-3 text-red-700 text-[13px]">{error}</div>}
 
       {latestRound?.customer_comments && (
         <div className="mx-8 mt-4 border border-yellow-500/30 bg-yellow-500/5 px-5 py-4">
@@ -607,31 +607,31 @@ export default function ReplyBuilderPage() {
               // and a remove button. Matches the pattern used in TrayItemsSection.tsx.
               if (item.is_condiment) {
                 return (
-                  <div key={item.id} className="ml-6 flex items-center gap-3 px-3 py-2 border border-amber-500/15 bg-amber-500/[0.04] rounded-sm">
-                    <span className="text-amber-400/50 text-[12px] flex-shrink-0">↳</span>
+                  <div key={item.id} className="ml-6 flex items-center gap-3 px-3 py-2 border border-gold/25 bg-royal-mid rounded-sm">
+                    <span className="text-gold text-[12px] flex-shrink-0">↳</span>
                     <input value={item.dish_name}
                       onChange={e => updateItem(item.id, { dish_name: e.target.value })}
-                      className="bg-transparent border-b border-amber-500/20 text-amber-100/90 font-jost font-light text-[13px] outline-none focus:border-amber-400/50 transition-colors flex-1"
+                      className="bg-transparent border-b border-gold/30 text-cream font-jost font-light text-[13px] outline-none focus:border-gold transition-colors flex-1"
                       placeholder="Condiment name..." />
                     <input value={item.condiment_qty || ''}
                       onChange={e => updateItem(item.id, { condiment_qty: e.target.value })}
-                      className="bg-royal-mid border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-14 text-center rounded-sm"
+                      className="bg-royal border border-gold/30 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-gold transition-colors w-14 text-center rounded-sm"
                       placeholder="Qty" />
                     <input value={item.condiment_unit || ''}
                       onChange={e => updateItem(item.id, { condiment_unit: e.target.value })}
-                      className="bg-royal-mid border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-20 rounded-sm"
+                      className="bg-royal border border-gold/30 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-gold transition-colors w-20 rounded-sm"
                       placeholder="Unit" />
                     <button onClick={() => updateItem(item.id, { show_on_quote: !item.show_on_quote })}
                       title={item.show_on_quote ? 'Visible to customer — click to hide' : 'Kitchen-only — click to show on quote'}
                       className={`flex-shrink-0 font-cinzel text-[7px] tracking-[0.15em] uppercase px-2.5 py-1.5 border transition-colors ${
                         item.show_on_quote
-                          ? 'border-green-500/40 text-green-300 bg-green-500/10'
-                          : 'border-cream/15 text-cream/30 bg-transparent'
+                          ? 'border-green-600/50 text-green-700 bg-green-500/10'
+                          : 'border-cream/25 text-cream/50 bg-transparent'
                       }`}>
                       {item.show_on_quote ? 'On Quote' : 'Kitchen Only'}
                     </button>
-                    <span className="text-cream/20 text-[10px] flex-shrink-0">Included</span>
-                    <button onClick={() => removeItem(item.id)} className="text-red-400/30 hover:text-red-400 transition-colors flex-shrink-0">
+                    <span className="text-cream/50 text-[10px] flex-shrink-0">Included</span>
+                    <button onClick={() => removeItem(item.id)} className="text-red-500/60 hover:text-red-600 transition-colors flex-shrink-0">
                       <Trash2 size={12} />
                     </button>
                   </div>
@@ -639,9 +639,13 @@ export default function ReplyBuilderPage() {
               }
 
               return (
-                <div key={item.id} className={`border rounded-sm overflow-hidden ${hasComment ? 'border-yellow-500/30' : 'border-gold/20'}`}>
+                <div key={item.id} className={`border rounded-sm overflow-hidden ${hasComment ? 'border-gold/50' : 'border-gold/20'}`}>
                   {/* Dish row */}
-                  <div className={`px-5 py-4 ${hasComment ? 'bg-[#1a1200]' : idx % 2 === 0 ? 'bg-royal' : 'bg-royal-mid'}`}>
+                  {/* FIX-099 (Jun 20 2026): bg-[#1a1200] (a hardcoded dark brown-black highlight
+                      for dishes with customer comments) is invisible-equivalent on the white
+                      theme — replaced with bg-gold/10, a token-based tint that scales correctly
+                      regardless of which theme is active. */}
+                  <div className={`px-5 py-4 ${hasComment ? 'bg-gold/10' : idx % 2 === 0 ? 'bg-royal' : 'bg-royal-mid'}`}>
                     <div className="grid gap-4 items-start" style={{ gridTemplateColumns: '2fr 120px 120px 110px 110px 28px' }}>
                       <div>
                         <input value={item.dish_name}
@@ -649,7 +653,7 @@ export default function ReplyBuilderPage() {
                           className="bg-transparent border-b border-gold/20 text-cream font-jost font-semibold text-[15px] outline-none placeholder:text-cream/20 focus:border-gold transition-colors w-full pb-1" />
                         <span className="text-[10px] text-gold/50 font-cinzel tracking-wider mt-0.5 block">
                           {getTrayLabel(item)} · {getQtyDisplay(item)} · {fmt(item.unit_price_cents)}/unit
-                          {item.master_prices && <span className="text-green-400/50 ml-2">● prices from menu</span>}
+                          {item.master_prices && <span className="text-green-700/90 ml-2">● prices from menu</span>}
                         </span>
                       </div>
 
@@ -711,7 +715,7 @@ export default function ReplyBuilderPage() {
                           className={numInp} />
                         {/* FIX-039: show price hint from master menu */}
                         {item.master_prices && item.pricing_type === 'tray' && (
-                          <div className="text-[9px] text-green-400/40 mt-0.5 text-right">
+                          <div className="text-[9px] text-green-700/85 mt-0.5 text-right">
                             S:{fmt(item.master_prices.half_tray_cents)} M:{fmt(item.master_prices.medium_tray_cents)} F:{fmt(item.master_prices.full_tray_cents)}
                           </div>
                         )}
@@ -723,7 +727,7 @@ export default function ReplyBuilderPage() {
                         <span className="font-italiana text-[20px] text-gold-hi">{fmt(lineTotal)}</span>
                       </div>
 
-                      <button onClick={() => removeItem(item.id)} className="text-red-400/30 hover:text-red-400 transition-colors mt-3"><Trash2 size={14} /></button>
+                      <button onClick={() => removeItem(item.id)} className="text-red-600/50 hover:text-red-700 transition-colors mt-3"><Trash2 size={14} /></button>
                     </div>
                   </div>
 
@@ -747,7 +751,7 @@ export default function ReplyBuilderPage() {
                         </div>
                         {t.admin_reply && (
                           <div className="flex items-start gap-2 pl-4">
-                            <span className="text-[9px] font-cinzel tracking-wider text-green-400/60 uppercase w-20 flex-shrink-0 mt-0.5">R{t.round} Maya</span>
+                            <span className="text-[9px] font-cinzel tracking-wider text-green-700/80 uppercase w-20 flex-shrink-0 mt-0.5">R{t.round} Maya</span>
                             <span className="text-green-200/70 text-[12px]">{t.admin_reply}</span>
                           </div>
                         )}
@@ -761,7 +765,7 @@ export default function ReplyBuilderPage() {
                       </div>
                     )}
                     <div className="flex items-start gap-2 mt-1">
-                      <span className="text-[9px] font-cinzel tracking-wider text-green-400/60 uppercase w-24 flex-shrink-0 mt-2">Your Reply</span>
+                      <span className="text-[9px] font-cinzel tracking-wider text-green-700/80 uppercase w-24 flex-shrink-0 mt-2">Your Reply</span>
                       <input value={item.admin_reply}
                         onChange={e => updateItem(item.id, { admin_reply: e.target.value })}
                         placeholder={item.customer_comment ? "Type your reply..." : "Add a note (optional)..."}
@@ -820,7 +824,7 @@ export default function ReplyBuilderPage() {
                       <input type="number" min="0" value={discountValue} onChange={e => setDiscountValue(e.target.value)}
                         className="bg-royal border border-gold/20 text-cream font-italiana text-[22px] outline-none pl-8 pr-4 py-2 focus:border-gold transition-colors w-36" placeholder="0" />
                     </div>
-                    {discountCents > 0 && <span className="text-green-400 text-[12px]">Saving {fmt(discountCents)}</span>}
+                    {discountCents > 0 && <span className="text-green-700 text-[12px]">Saving {fmt(discountCents)}</span>}
                   </div>
                 )}
               </div>
@@ -828,7 +832,7 @@ export default function ReplyBuilderPage() {
 
             {/* Overall reply */}
             <div className="border border-green-500/20 bg-[#050d05] p-6">
-              <label className="font-cinzel text-[8px] tracking-[0.3em] uppercase text-green-400/70 block mb-3">Your Overall Reply to Customer</label>
+              <label className="font-cinzel text-[8px] tracking-[0.3em] uppercase text-green-700/90 block mb-3">Your Overall Reply to Customer</label>
               {latestRound?.customer_comments && (
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded px-4 py-3 mb-3 text-[12px] text-yellow-200/80">
                   <span className="font-cinzel text-[7px] tracking-[0.15em] uppercase text-yellow-400/60 block mb-1">Customer said:</span>
@@ -847,11 +851,11 @@ export default function ReplyBuilderPage() {
               <span className="font-cinzel text-[8px] tracking-[0.3em] uppercase text-gold block mb-5">Updated Quote Summary</span>
               <div className="mb-4 pb-4 border-b border-gold/10">
                 <p className="text-cream text-[14px]">{enquiry?.customer_name}</p>
-                <p className="text-amber-400/70 text-[11px] mt-1">Round {latestRound?.round_number} → Sending Round {(latestRound?.round_number || 1) + 1}</p>
+                <p className="text-gold-hi text-[11px] mt-1">Round {latestRound?.round_number} → Sending Round {(latestRound?.round_number || 1) + 1}</p>
               </div>
               <div className="flex flex-col gap-2 text-[13px]">
                 <div className="flex justify-between"><span className="text-cream/50">Food subtotal</span><span className="text-cream">{fmt(subtotal)}</span></div>
-                {discountCents > 0 && <div className="flex justify-between text-green-400"><span>Discount</span><span>−{fmt(discountCents)}</span></div>}
+                {discountCents > 0 && <div className="flex justify-between text-green-700"><span>Discount</span><span>−{fmt(discountCents)}</span></div>}
                 {deliveryCents > 0 && <div className="flex justify-between"><span className="text-cream/50">🚚 Delivery</span><span className="text-cream">{fmt(deliveryCents)}</span></div>}
                 {setupCents > 0 && <div className="flex justify-between"><span className="text-cream/50">🏗️ Setup</span><span className="text-cream">{fmt(setupCents)}</span></div>}
                 {serviceCents > 0 && <div className="flex justify-between"><span className="text-cream/50">👨‍🍳 Service</span><span className="text-cream">{fmt(serviceCents)}</span></div>}
@@ -878,7 +882,7 @@ export default function ReplyBuilderPage() {
                     <div key={i.id} className="text-[12px]">
                       <span className="text-cream/60 font-medium">{i.dish_name}:</span>{' '}
                       <span className="text-yellow-200/70 italic">{i.customer_comment}</span>
-                      {i.admin_reply && <div className="text-green-300/60 text-[11px] mt-0.5">↳ {i.admin_reply}</div>}
+                      {i.admin_reply && <div className="text-green-700/85 text-[11px] mt-0.5">↳ {i.admin_reply}</div>}
                     </div>
                   ))}
                 </div>
@@ -923,7 +927,7 @@ export default function ReplyBuilderPage() {
                       </div>
                       <div className="flex gap-3 text-[11px] text-cream/40">
                         {dish.has_tray && <span>S:{fmt(dish.half_tray_cents)} M:{fmt(dish.medium_tray_cents)} F:{fmt(dish.full_tray_cents)}</span>}
-                        {dish.has_per_person && <span className="text-amber-400/70">👤 {fmt(dish.per_person_cents)}/pp</span>}
+                        {dish.has_per_person && <span className="text-gold-hi">👤 {fmt(dish.per_person_cents)}/pp</span>}
                       </div>
                     </button>
                   ))}

@@ -279,8 +279,8 @@ export default function QuoteBuilderPage() {
         </div>
       </div>
 
-      {error && <div className="mx-8 mt-4 border border-red-500/40 bg-red-500/10 px-5 py-3 text-red-400 text-[13px]">{error}</div>}
-      {saved && <div className="mx-8 mt-4 border border-green-500/40 bg-green-500/10 px-5 py-3 text-green-400 text-[13px]">✅ Quote saved as version {existingVersion}!</div>}
+      {error && <div className="mx-8 mt-4 border border-red-500/40 bg-red-500/10 px-5 py-3 text-red-700 text-[13px]">{error}</div>}
+      {saved && <div className="mx-8 mt-4 border border-green-500/40 bg-green-500/10 px-5 py-3 text-green-700 text-[13px]">✅ Quote saved as version {existingVersion}!</div>}
 
       <div className="max-w-[1300px] mx-auto px-8 py-8">
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-8">
@@ -316,7 +316,7 @@ export default function QuoteBuilderPage() {
                     <div className="flex items-center gap-4 mb-6">
                       <span className="font-cinzel text-[8px] tracking-[0.3em] uppercase text-gold">Session {si + 1}</span>
                       <input value={sess.session_name} onChange={e => updateSession(sess.id, 'session_name', e.target.value)} className="bg-transparent border-b border-gold/30 text-cream font-italiana text-[22px] outline-none focus:border-gold transition-colors flex-1" placeholder="e.g. Baraat · Lunch · Dinner · Reception" />
-                      {sessions.length > 1 && <button onClick={() => setSessions(prev => prev.filter(s => s.id !== sess.id))} className="text-red-400/40 hover:text-red-400 transition-colors"><Trash2 size={16} /></button>}
+                      {sessions.length > 1 && <button onClick={() => setSessions(prev => prev.filter(s => s.id !== sess.id))} className="text-red-600/60 hover:text-red-700 transition-colors"><Trash2 size={16} /></button>}
                     </div>
                     <div className="grid grid-cols-2 gap-5 mb-6">
                       <div><label className="font-cinzel text-[7.5px] tracking-[0.22em] uppercase text-gold/60 block mb-2">Guest Count</label><input type="number" min="1" value={sess.guest_count} onChange={e => updateSession(sess.id, 'guest_count', parseInt(e.target.value)||0)} className={inp} /></div>
@@ -354,7 +354,7 @@ export default function QuoteBuilderPage() {
                                 <label className="flex items-center gap-1 text-[11px] text-cream/40 cursor-pointer"><input type="checkbox" checked={dish.is_live_station} onChange={e => updateDish(sess.id, cat.id, dish.id, 'is_live_station', e.target.checked)} className="accent-yellow-500" />Live</label>
                                 <label className="flex items-center gap-1 text-[11px] text-cream/40 cursor-pointer"><input type="checkbox" checked={dish.is_passing} onChange={e => updateDish(sess.id, cat.id, dish.id, 'is_passing', e.target.checked)} className="accent-yellow-500" />Passing</label>
                                 <input value={dish.notes} onChange={e => updateDish(sess.id, cat.id, dish.id, 'notes', e.target.value)} className="bg-transparent border-b border-gold/10 text-cream/40 font-jost text-[11px] outline-none focus:border-gold/30 w-32" placeholder="Notes..." />
-                                <button onClick={() => removeDish(sess.id, cat.id, dish.id)} className="text-red-400/30 hover:text-red-400 transition-colors"><Trash2 size={12} /></button>
+                                <button onClick={() => removeDish(sess.id, cat.id, dish.id)} className="text-red-600/50 hover:text-red-700 transition-colors"><Trash2 size={12} /></button>
                               </div>
                             ))}
                             <button onClick={() => addDishToCategory(sess.id, cat.id)} className="font-cinzel text-[7px] tracking-[0.15em] uppercase text-gold/40 hover:text-gold transition-colors flex items-center gap-1 mt-2 pl-3"><Plus size={11} /> Add dish</button>
@@ -404,7 +404,7 @@ export default function QuoteBuilderPage() {
                   <div className="flex gap-4 items-end">
                     <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-cream/40">{discountType === 'percent' ? '%' : '$'}</span><input type="number" min="0" value={discountValue} onChange={e => setDiscountValue(e.target.value)} className="bg-royal border border-gold/20 text-cream font-italiana text-[22px] outline-none pl-8 pr-4 py-2 focus:border-gold transition-colors w-36" placeholder="0" /></div>
                     <input value={discountNote} onChange={e => setDiscountNote(e.target.value)} className={inp+' text-[13px]'} placeholder="Reason for discount..." />
-                    {disc > 0 && <span className="text-green-400 text-[12px] flex-shrink-0">Saving {fmt(disc)}</span>}
+                    {disc > 0 && <span className="text-green-700 text-[12px] flex-shrink-0">Saving {fmt(disc)}</span>}
                   </div>
                 )}
               </div>
@@ -426,7 +426,7 @@ export default function QuoteBuilderPage() {
                 <div className="flex justify-between"><span className="text-cream/50">Food subtotal</span><span className="text-cream">{fmt(sub)}</span></div>
                 {/* FIX-007 (Jun 15 2026): hide Labour row when $0 — was showing $0.00 cluttering summary */}
                 {labour > 0 && <div className="flex justify-between"><span className="text-cream/50">Labour</span><span className="text-cream">{fmt(labour)}</span></div>}
-                {disc > 0 && <div className="flex justify-between text-green-400"><span>Discount</span><span>−{fmt(disc)}</span></div>}
+                {disc > 0 && <div className="flex justify-between text-green-700"><span>Discount</span><span>−{fmt(disc)}</span></div>}
                 {parseFloat(deliveryFee) > 0 && <div className="flex justify-between"><span className="text-cream/50">🚚 Delivery</span><span className="text-cream">{fmt(Math.round(parseFloat(deliveryFee)*100))}</span></div>}
                 {parseFloat(setupFee) > 0 && <div className="flex justify-between"><span className="text-cream/50">🏗️ Setup</span><span className="text-cream">{fmt(Math.round(parseFloat(setupFee)*100))}</span></div>}
                 {parseFloat(serviceFee) > 0 && <div className="flex justify-between"><span className="text-cream/50">👨‍🍳 Service</span><span className="text-cream">{fmt(Math.round(parseFloat(serviceFee)*100))}</span></div>}

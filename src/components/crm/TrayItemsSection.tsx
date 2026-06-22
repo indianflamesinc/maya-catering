@@ -251,32 +251,40 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
         // (tray size / pricing type / unit price don't apply to a condiment)
         if (item.is_condiment) {
           return (
-            <div key={item.id} className="mb-1 ml-6 flex items-center gap-3 px-3 py-2 border border-amber-500/15 bg-amber-500/[0.04] rounded-sm">
-              <span className="text-amber-400/50 text-[12px] flex-shrink-0">↳</span>
+            // FIX-099 (Jun 20 2026): replaced Tailwind's generic amber-* palette with our
+            // actual theme tokens. amber-100/90 (a pale near-white yellow, #fef3c7 at 90%)
+            // read as a soft warm highlight on dark navy, but on the white/cream theme it's
+            // nearly invisible — almost the same lightness as the page background. amber-500
+            // at low opacity (background, borders) had the same problem in reverse: a
+            // 4%-opacity tint barely shows up against cream at all. Theme tokens (text-gold,
+            // text-cream, bg-royal-mid, border-gold) track whichever theme is active correctly,
+            // since they're defined once in tailwind.config.ts rather than hardcoded per-use.
+            <div key={item.id} className="mb-1 ml-6 flex items-center gap-3 px-3 py-2 border border-gold/25 bg-royal-mid rounded-sm">
+              <span className="text-gold text-[12px] flex-shrink-0">↳</span>
               <input value={item.dish_name}
                 onChange={e => updateItem(item.id, { dish_name: e.target.value })}
-                className="bg-transparent border-b border-amber-500/20 text-amber-100/90 font-jost font-light text-[13px] outline-none focus:border-amber-400/50 transition-colors flex-1"
+                className="bg-transparent border-b border-gold/30 text-cream font-jost font-light text-[13px] outline-none focus:border-gold transition-colors flex-1"
                 placeholder="Condiment name..." />
               <input value={item.condiment_qty || ''}
                 onChange={e => updateItem(item.id, { condiment_qty: e.target.value })}
-                className="bg-royal-mid border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-14 text-center rounded-sm"
+                className="bg-royal border border-gold/30 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-gold transition-colors w-14 text-center rounded-sm"
                 placeholder="Qty" />
               <input value={item.condiment_unit || ''}
                 onChange={e => updateItem(item.id, { condiment_unit: e.target.value })}
-                className="bg-royal-mid border border-amber-500/20 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-amber-400/50 transition-colors w-20 rounded-sm"
+                className="bg-royal border border-gold/30 text-cream font-jost text-[12px] outline-none px-2 py-1 focus:border-gold transition-colors w-20 rounded-sm"
                 placeholder="Unit" />
               <button onClick={() => toggleCondimentVisibility(item.id)}
                 title={item.show_on_quote ? 'Visible to customer — click to hide' : 'Kitchen-only — click to show on quote'}
                 className={`flex-shrink-0 font-cinzel text-[7px] tracking-[0.15em] uppercase px-2.5 py-1.5 border transition-colors ${
                   item.show_on_quote
-                    ? 'border-green-500/40 text-green-300 bg-green-500/10'
-                    : 'border-cream/15 text-cream/30 bg-transparent'
+                    ? 'border-green-600/50 text-green-700 bg-green-500/10'
+                    : 'border-cream/25 text-cream/50 bg-transparent'
                 }`}>
                 {item.show_on_quote ? 'On Quote' : 'Kitchen Only'}
               </button>
-              <span className="text-cream/20 text-[10px] flex-shrink-0">Included</span>
+              <span className="text-cream/50 text-[10px] flex-shrink-0">Included</span>
               <button onClick={() => onChange(items.filter(i => i.id !== item.id))}
-                className="text-red-400/30 hover:text-red-400 transition-colors flex-shrink-0">
+                className="text-red-500/60 hover:text-red-600 transition-colors flex-shrink-0">
                 <Trash2 size={12} />
               </button>
             </div>
@@ -296,10 +304,13 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
                   className="bg-transparent border-b border-gold/20 text-cream font-jost font-light text-[14px] outline-none placeholder:text-cream/20 focus:border-gold transition-colors w-full pb-1"
                   placeholder="Dish name..." />
                 <span className={`text-[9px] mt-0.5 block font-cinzel tracking-wider ${
-                  item.pricing_type === 'tray'       ? 'text-blue-400' :
-                  item.pricing_type === 'per_person' ? 'text-amber-400' :
-                  item.pricing_type === 'per_piece'  ? 'text-teal-400' :
-                  item.pricing_type === 'per_gallon' ? 'text-purple-400' : 'text-pink-400'
+                  // FIX-099 (Jun 20 2026): -400 weight Tailwind colors (designed for dark
+                  // backgrounds) were 1.5-2.5:1 contrast on the white theme — switched to
+                  // -700 weight for the same hues, now 4.7-6.5:1.
+                  item.pricing_type === 'tray'       ? 'text-blue-700' :
+                  item.pricing_type === 'per_person' ? 'text-amber-700' :
+                  item.pricing_type === 'per_piece'  ? 'text-teal-700' :
+                  item.pricing_type === 'per_gallon' ? 'text-purple-700' : 'text-pink-700'
                 }`}>
                   {PRICING_TYPES.find(p => p.value === item.pricing_type)?.label}
                 </span>
@@ -359,7 +370,7 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
 
               {/* Delete — FIX-093: also removes condiment children */}
               <button onClick={() => removeItemAndChildren(item.id)}
-                className="text-red-400/30 hover:text-red-400 transition-colors flex items-center justify-center">
+                className="text-red-600/50 hover:text-red-700 transition-colors flex items-center justify-center">
                 <Trash2 size={13} />
               </button>
 
@@ -379,9 +390,9 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
 
             {/* Customer feedback banner from review round */}
             {item.customer_feedback && (
-              <div className="flex items-start gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 border-t-0 rounded-b-sm">
-                <MessageSquare size={11} className="text-amber-400 mt-0.5 flex-shrink-0" />
-                <span className="text-amber-300/80 text-[11px] italic">{item.customer_feedback}</span>
+              <div className="flex items-start gap-2 px-3 py-2 bg-gold/10 border border-gold/25 border-t-0 rounded-b-sm">
+                <MessageSquare size={11} className="text-gold-hi mt-0.5 flex-shrink-0" />
+                <span className="text-gold-hi text-[11px] italic">{item.customer_feedback}</span>
               </div>
             )}
           </div>
@@ -453,8 +464,8 @@ export default function TrayItemsSection({ items, onChange, guestCount = 50 }: P
                       </div>
                       <div className="flex gap-3 text-[11px] text-cream/40">
                         {dish.has_tray && dish.medium_tray_cents > 0 && <span>S:{fmt(dish.half_tray_cents)} M:{fmt(dish.medium_tray_cents)} F:{fmt(dish.full_tray_cents)}</span>}
-                        {dish.has_per_person && dish.per_person_cents > 0 && <span className="text-amber-400/70">👤 {fmt(dish.per_person_cents)}/pp</span>}
-                        {dish.has_per_piece && dish.per_piece_cents > 0 && <span className="text-teal-400/70">🔢 {fmt(dish.per_piece_cents)}/pc</span>}
+                        {dish.has_per_person && dish.per_person_cents > 0 && <span className="text-gold-hi">👤 {fmt(dish.per_person_cents)}/pp</span>}
+                        {dish.has_per_piece && dish.per_piece_cents > 0 && <span className="text-teal-700/90">🔢 {fmt(dish.per_piece_cents)}/pc</span>}
                       </div>
                     </button>
                   ))}
