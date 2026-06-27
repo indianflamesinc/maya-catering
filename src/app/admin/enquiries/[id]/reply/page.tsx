@@ -499,7 +499,7 @@ export default function ReplyBuilderPage() {
   if (sentSuccess) {
     const targetEnquiryId = id
     return (
-      <div className="min-h-screen bg-ink flex items-center justify-center">
+      <div className="min-h-screen bg-paper flex items-center justify-center">
         <div className="max-w-lg w-full mx-8 flex flex-col gap-6">
           <div className="border border-green-500/30 bg-green-500/10 rounded-lg p-8 text-center">
             <div className="text-5xl mb-4">✅</div>
@@ -532,20 +532,20 @@ export default function ReplyBuilderPage() {
   }
 
   if (loading) return (
-    <div className="min-h-screen bg-ink flex items-center justify-center">
+    <div className="min-h-screen bg-paper flex items-center justify-center">
       <p className="font-italiana text-[28px] text-cream/30">Loading reply builder...</p>
     </div>
   )
 
   if (error && !latestRound) return (
-    <div className="min-h-screen bg-ink flex items-center justify-center flex-col gap-4">
+    <div className="min-h-screen bg-paper flex items-center justify-center flex-col gap-4">
       <p className="text-red-700 text-[14px]">{error}</p>
       <Link href={`/admin/enquiries/${id}`} className="font-cinzel text-[8px] tracking-[0.2em] uppercase border border-gold/30 text-gold px-4 py-2">← Back</Link>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-ink">
+    <div className="min-h-screen bg-paper">
       {/* Header */}
       <div className="bg-royal-mid border-b border-gold/20 px-8 py-5 flex items-center gap-4 sticky top-0 z-30">
         <Link href={`/admin/enquiries/${id}`} className="text-gold/50 hover:text-gold transition-colors"><ArrowLeft size={20} /></Link>

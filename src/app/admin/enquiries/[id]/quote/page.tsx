@@ -259,10 +259,10 @@ export default function QuoteBuilderPage() {
     setSaving(false)
   }
 
-  if (loading) return <div className="min-h-screen bg-ink flex items-center justify-center"><p className="font-italiana text-[28px] text-cream/30">Loading quote...</p></div>
+  if (loading) return <div className="min-h-screen bg-paper flex items-center justify-center"><p className="font-italiana text-[28px] text-cream/30">Loading quote...</p></div>
 
   return (
-    <div className="min-h-screen bg-ink">
+    <div className="min-h-screen bg-paper">
       <div className="bg-royal-mid border-b border-gold/20 px-8 py-5 flex items-center gap-4 sticky top-0 z-30">
         <Link href={`/admin/enquiries/${id}`} className="text-gold/50 hover:text-gold transition-colors"><ArrowLeft size={20} /></Link>
         <div className="flex-1">

@@ -127,15 +127,15 @@ export default function EnquiryDetailPage() {
     setUpdating(false)
   }
 
-  if (loading) return <div className="min-h-screen bg-ink flex items-center justify-center"><p className="font-italiana text-[28px] text-cream/30">Loading...</p></div>
-  if (!enquiry) return <div className="min-h-screen bg-ink flex items-center justify-center"><p className="font-italiana text-[28px] text-cream/30">Not found</p></div>
+  if (loading) return <div className="min-h-screen bg-paper flex items-center justify-center"><p className="font-italiana text-[28px] text-cream/30">Loading...</p></div>
+  if (!enquiry) return <div className="min-h-screen bg-paper flex items-center justify-center"><p className="font-italiana text-[28px] text-cream/30">Not found</p></div>
 
   const latestQuote = quotes[0]
   const daysUntil = Math.ceil((new Date(enquiry.event_date).getTime() - Date.now()) / 86400000)
   const statusIdx = PIPELINE.findIndex(p => p.status === enquiry.status)
 
   return (
-    <div className="min-h-screen bg-ink">
+    <div className="min-h-screen bg-paper">
       {/* Header */}
       <div className="bg-royal-mid border-b border-gold/20 px-8 py-5">
         <div className="flex items-center gap-4 mb-5">
@@ -198,7 +198,7 @@ export default function EnquiryDetailPage() {
         )}
         {['confirmed','deposit_paid','approved'].includes(enquiry.status) && (
           <Link href={`/admin/enquiries/${id}/kitchen`}
-            className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-green-500/40 text-green-400 px-4 py-2 hover:bg-green-500/10 transition-colors flex items-center gap-2">
+            className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-green-500/40 text-green-700 px-4 py-2 hover:bg-green-500/10 transition-colors flex items-center gap-2">
             <ClipboardList size={12} /> Kitchen Prep List
           </Link>
         )}
@@ -207,12 +207,12 @@ export default function EnquiryDetailPage() {
            AFTER: dedicated button in action bar when status=approved for Zelle/Check payment confirmation */}
         {enquiry.status === 'approved' && (
           <button onClick={advanceStatus} disabled={updating}
-            className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-green-500/40 text-green-400 px-4 py-2 hover:bg-green-500/10 transition-colors flex items-center gap-2 ml-auto">
+            className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-green-500/40 text-green-700 px-4 py-2 hover:bg-green-500/10 transition-colors flex items-center gap-2 ml-auto">
             💰 Mark Deposit Received
           </button>
         )}
         <button onClick={markCancelled} disabled={updating || enquiry.status === 'cancelled'}
-          className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-red-500/20 text-red-400/60 px-4 py-2 hover:bg-red-500/10 transition-colors ml-auto disabled:opacity-20">
+          className="font-cinzel text-[7.5px] tracking-[0.2em] uppercase border border-red-500/20 text-red-600/70 px-4 py-2 hover:bg-red-500/10 transition-colors ml-auto disabled:opacity-20">
           Cancel Enquiry
         </button>
       </div>
@@ -235,9 +235,9 @@ export default function EnquiryDetailPage() {
                       ? enqStatus.replace('_',' ')
                       : latestQuote.status
                     const badgeClass = ['approved','deposit paid','confirmed','completed'].includes(derivedStatus)
-                      ? 'border-green-500/40 text-green-400 bg-green-500/10'
+                      ? 'border-green-500/40 text-green-700 bg-green-500/10'
                       : latestQuote.status === 'sent'
-                      ? 'border-blue-500/40 text-blue-400 bg-blue-500/10'
+                      ? 'border-blue-500/40 text-blue-700 bg-blue-500/10'
                       : 'border-gold/20 text-gold/60'
                     return (
                       <span className={`font-cinzel text-[7.5px] tracking-[0.15em] uppercase border px-2 py-1 ${badgeClass}`}>
@@ -328,8 +328,8 @@ export default function EnquiryDetailPage() {
                           {(cat.quote_session_dishes || []).map((dish: any) => (
                             <div key={dish.id} className="text-[12px] text-cream/60 pl-3 py-0.5 flex items-center gap-2">
                               <span className="text-gold/20">•</span>{dish.dish_name}
-                              {dish.is_live_station && <span className="text-amber-400/70 text-[9px] font-cinzel tracking-wider uppercase">Live</span>}
-                              {dish.is_passing && <span className="text-blue-400/70 text-[9px] font-cinzel tracking-wider uppercase">Passing</span>}
+                              {dish.is_live_station && <span className="text-amber-700/90 text-[9px] font-cinzel tracking-wider uppercase">Live</span>}
+                              {dish.is_passing && <span className="text-blue-700/70 text-[9px] font-cinzel tracking-wider uppercase">Passing</span>}
                             </div>
                           ))}
                         </div>
@@ -435,7 +435,7 @@ export default function EnquiryDetailPage() {
             <div className={`border p-5 text-center ${daysUntil <= 7 ? 'border-red-500/40 bg-red-500/5' : daysUntil <= 30 ? 'border-amber-500/40 bg-amber-500/5' : 'border-gold/20 bg-royal-mid'}`}>
               <span className="font-italiana text-[60px] text-cream block leading-none">{daysUntil > 0 ? daysUntil : 0}</span>
               <span className="font-cinzel text-[8px] tracking-[0.3em] uppercase text-gold">days until event</span>
-              {daysUntil <= 7 && daysUntil > 0 && <p className="text-red-400 text-[11px] mt-1">⚡ This week!</p>}
+              {daysUntil <= 7 && daysUntil > 0 && <p className="text-red-700 text-[11px] mt-1">⚡ This week!</p>}
             </div>
 
             {statusIdx < PIPELINE.length - 1 && (
